@@ -1,6 +1,5 @@
-FROM oven/bun:1.3.5
+FROM oven/bun:1.3.5-alpine
 
-ARG CACHEBUST=2
 WORKDIR /app
 
 COPY . .
