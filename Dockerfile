@@ -2,14 +2,11 @@ FROM oven/bun:1.3.5
 
 WORKDIR /app
 
-# Copy everything at once (simpler, cache busting)
 COPY . .
 
-# Install all deps
 RUN bun install --frozen-lockfile
 
-# Build from correct directory (where index.html is)
-RUN cd packages/web && bunx vite build --root .
+RUN cd packages/web && bunx vite build
 
 EXPOSE 3000
 ENV NODE_ENV=production
