@@ -2,20 +2,13 @@ FROM oven/bun:1.3.5
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json bun.lock ./
-COPY packages/web/package.json ./packages/web/
-COPY packages/web/src ./packages/web/src
-COPY packages/web/vite ./packages/web/vite
-COPY packages/web/vite.config.ts ./packages/web/
-COPY packages/web/tsconfig.json ./packages/web/
-COPY tsconfig.json ./
-COPY turbo.json ./
+# Copy all files
+COPY . .
 
 # Install deps
 RUN bun install
 
-# Build
+# Build frontend
 RUN cd packages/web && bunx vite build
 
 EXPOSE 3000

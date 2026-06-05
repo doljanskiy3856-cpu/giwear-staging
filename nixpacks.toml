@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["bun install"]
+
+[phases.build]
+cmds = ["cd packages/web && bunx vite build"]
+
+[start]
+cmd = "bun packages/web/src/server.ts"
