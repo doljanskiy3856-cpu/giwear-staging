@@ -52,12 +52,14 @@ function ReqBlock() {
           +380 66 856 48 45
         </a>
       </p>
-      <p className="text-[#B0B0B0]">
-        Telegram / Viber / WhatsApp:{' '}
-        <a href="tel:+380668564845" className="text-[#E8232A] hover:underline">
-          +380 66 856 48 45
-        </a>
-      </p>
+      <div className="text-[#B0B0B0] flex flex-wrap gap-x-3 gap-y-1">
+        <span>Месенджери:</span>
+        <a href="https://t.me/gistore_ua" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">Telegram</a>
+        <span className="text-[#3A3A3A]">·</span>
+        <a href="viber://chat?number=%2B380668564845" className="text-[#E8232A] hover:underline">Viber</a>
+        <span className="text-[#3A3A3A]">·</span>
+        <a href="https://wa.me/380668564845" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">WhatsApp</a>
+      </div>
     </div>
   );
 }
@@ -211,18 +213,14 @@ export default function PublicOfferPage() {
               Email:{' '}
               <a href="mailto:doljanskiy3856@gmail.com" className="text-[#E8232A] hover:underline">doljanskiy3856@gmail.com</a>
             </p>
-            <p className="text-[#B0B0B0]">
-              Telegram:{' '}
-              <a href="https://t.me/+380668564845" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">+380 66 856 48 45</a>
-            </p>
-            <p className="text-[#B0B0B0]">
-              Viber:{' '}
-              <a href="viber://chat?number=%2B380668564845" className="text-[#E8232A] hover:underline">+380 66 856 48 45</a>
-            </p>
-            <p className="text-[#B0B0B0]">
-              WhatsApp:{' '}
-              <a href="https://wa.me/380668564845" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">+380 66 856 48 45</a>
-            </p>
+            <div className="text-[#B0B0B0] flex flex-wrap gap-x-3 gap-y-1">
+              <span>Месенджери:</span>
+              <a href="https://t.me/gistore_ua" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">Telegram</a>
+              <span className="text-[#3A3A3A]">·</span>
+              <a href="viber://chat?number=%2B380668564845" className="text-[#E8232A] hover:underline">Viber</a>
+              <span className="text-[#3A3A3A]">·</span>
+              <a href="https://wa.me/380668564845" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">WhatsApp</a>
+            </div>
           </div>
         </Section>
 
