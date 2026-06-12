@@ -35,11 +35,11 @@ function ReqBlock() {
   return (
     <div className="bg-[#1A1A1A] border border-[#2E2E2E] rounded-xl p-4 lg:p-5 space-y-1.5 font-inter text-sm">
       <p className="text-white font-semibold mb-2">Продавець:</p>
-      <p className="text-[#B0B0B0]">ФОП ____________________________</p>
-      <p className="text-[#B0B0B0]">РНОКПП / ЄДРПОУ: 0000000000</p>
-      <p className="text-[#B0B0B0]">Адреса реєстрації: Україна, ____________________________</p>
-      <p className="text-[#B0B0B0]">IBAN: UA000000000000000000000000000</p>
-      <p className="text-[#B0B0B0]">Банк: ____________________________</p>
+      <p className="text-[#B0B0B0]">Отримувач: <span className="text-white">Должанський Данііл Сергійович</span></p>
+      <p className="text-[#B0B0B0]">ІПН/ЄДРПОУ: <span className="text-white">3919006453</span></p>
+      <p className="text-[#B0B0B0]">IBAN: <span className="text-white">UA163220010000026205363783574</span></p>
+      <p className="text-[#B0B0B0]">Банк: <span className="text-white">АТ «УНІВЕРСАЛ БАНК»</span></p>
+      <p className="text-[#B0B0B0]">Адреса реєстрації: <span className="text-white">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
       <p className="text-[#B0B0B0]">
         Email:{' '}
         <a href="mailto:doljanskiy3856@gmail.com" className="text-[#E8232A] hover:underline">
@@ -198,9 +198,11 @@ export default function PublicOfferPage() {
             <p className="text-white font-semibold text-base mb-3">GIWEAR</p>
             <p className="text-[#B0B0B0]">Інтернет-магазин: <span className="text-white">GIWEAR</span></p>
             <p className="text-[#B0B0B0]">Сайт: <a href="https://giwear.com.ua" className="text-[#E8232A] hover:underline">giwear.com.ua</a></p>
-            <p className="text-[#B0B0B0]">Продавець: ФОП ____________________________</p>
-            <p className="text-[#B0B0B0]">РНОКПП / ЄДРПОУ: 0000000000</p>
-            <p className="text-[#B0B0B0]">Адреса: Україна, ____________________________</p>
+            <p className="text-[#B0B0B0]">Отримувач: <span className="text-white">Должанський Данііл Сергійович</span></p>
+            <p className="text-[#B0B0B0]">ІПН/ЄДРПОУ: <span className="text-white">3919006453</span></p>
+            <p className="text-[#B0B0B0]">IBAN: <span className="text-white">UA163220010000026205363783574</span></p>
+            <p className="text-[#B0B0B0]">Банк: <span className="text-white">АТ «УНІВЕРСАЛ БАНК»</span></p>
+            <p className="text-[#B0B0B0]">Адреса: <span className="text-white">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
             <p className="text-[#B0B0B0]">
               Телефон:{' '}
               <a href="tel:+380668564845" className="text-[#E8232A] hover:underline">+380 66 856 48 45</a>
