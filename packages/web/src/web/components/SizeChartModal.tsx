@@ -553,19 +553,6 @@ function SaunaSuitSizeContent() {
           Якщо вага або зріст між двома розмірами — напишіть менеджеру GIWEAR, підкажемо оптимальний варіант за вашими параметрами.
         </p>
       </div>
-      <div style={{
-        padding: '12px 18px',
-        borderRadius: 10,
-        background: 'rgba(232,35,42,0.05)',
-        border: '1px solid rgba(232,35,42,0.15)',
-      }}>
-        <p style={{ margin: 0, color: '#E8232A', fontSize: 12, fontWeight: 600, lineHeight: 1.4, fontFamily: 'Inter, sans-serif' }}>
-          Не впевнені з розміром?
-        </p>
-        <p style={{ margin: '4px 0 0', color: '#A0A0A0', fontSize: 12, lineHeight: 1.5, fontFamily: 'Inter, sans-serif' }}>
-          Напишіть менеджеру GIWEAR — підкажемо оптимальний варіант.
-        </p>
-      </div>
     </div>
   );
 }
