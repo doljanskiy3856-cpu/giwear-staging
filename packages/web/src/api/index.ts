@@ -594,5 +594,74 @@ app.post("/notify-availability", async (c) => {
   return c.json({ ok: true }, 200);
 });
 
+/* ══════════════════════════════════════════════════════════
+   /api/sitemap.xml — dynamic sitemap for Google
+   Serves clean canonical URLs only:
+     - HomePage
+     - CategoryPages (no filter/sort params)
+     - ProductPages  (no ?color= / ?size= params, available only)
+   Brand pages excluded until clean /brand/:slug routes exist.
+══════════════════════════════════════════════════════════ */
+const SITE_URL = (process.env.VITE_SITE_URL ?? 'https://giwear.com.ua').replace(/\/$/, '');
+
+const CATEGORY_PATHS = [
+  '/category/karate',
+  '/category/judo',
+  '/category/bjj',
+  '/category/sambo',
+  '/category/aikido',
+  '/category/dytiachy',
+  '/category/accessories',
+  '/category/bags',
+  '/category/trainers',
+];
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function xmlUrl(loc: string, priority: string, changefreq: string): string {
+  return `  <url>\n    <loc>${escapeXml(loc)}</loc>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+}
+
+app.get('/sitemap.xml', async (c) => {
+  try {
+    const products = await fetchCatalog();
+
+    // Only available products, deduplicated by id, clean URL (no query params)
+    const productUrls = products
+      .filter((p) => p.available)
+      .map((p) => p.id)
+      .filter((id, idx, arr) => arr.indexOf(id) === idx)
+      .map((id) => xmlUrl(`${SITE_URL}/product/${id}`, '0.8', 'weekly'));
+
+    const staticUrls = [
+      xmlUrl(`${SITE_URL}/`, '1.0', 'daily'),
+      ...CATEGORY_PATHS.map((path) => xmlUrl(`${SITE_URL}${path}`, '0.9', 'daily')),
+    ];
+
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...staticUrls,
+      ...productUrls,
+      '</urlset>',
+    ].join('\n');
+
+    return c.body(xml, 200, {
+      'Content-Type': 'application/xml; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    });
+  } catch (e) {
+    console.error('[sitemap] error:', e);
+    return c.text('Sitemap generation failed', 500);
+  }
+});
+
 export type AppType = typeof app;
 export default app;
