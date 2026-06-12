@@ -72,4 +72,7 @@ scripts/
 !packages/mobile/scripts/
 packages/mobile/scripts/*
 !packages/mobile/scripts/generate-ios-certs.py
+!packages/web/src/scripts/
+packages/web/src/scripts/*
+!packages/web/src/scripts/generate-sitemap.ts
 .env*
