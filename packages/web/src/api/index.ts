@@ -315,5 +315,115 @@ app.post("/orders", async (c) => {
   return c.json({ ok: true, orderId }, 200);
 });
 
+// ─── POST /api/notify-availability ───────────────────────────────────────────
+// Receives a "notify when available" request and sends email to store manager.
+app.post("/notify-availability", async (c) => {
+  let body: {
+    name: string;
+    phone: string;
+    email?: string;
+    productName: string;
+    brand?: string;
+    color?: string;
+    size?: string;
+    fit?: string;
+    vendorCode?: string;
+    productUrl?: string;
+    restockDate?: string;
+  };
+
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid JSON" }, 400);
+  }
+
+  const { name, phone } = body;
+  if (!name?.trim() || !phone?.trim()) {
+    return c.json({ error: "name and phone are required" }, 422);
+  }
+  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+    return c.json({ error: "Invalid email" }, 422);
+  }
+
+  const storeEmail = process.env.STORE_ORDER_EMAIL ?? "orders@giwear.com.ua";
+
+  const makeNotifyHtml = () => `<!DOCTYPE html>
+<html lang="uk">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Запит на наявність</title></head>
+<body style="margin:0;padding:24px;background:#0F0F0F;font-family:Inter,Arial,sans-serif">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#161616;border:1px solid #252525;border-radius:12px;overflow:hidden">
+  <tr><td style="padding:24px 24px 16px;border-bottom:1px solid #252525">
+    <img src="https://giwear.com.ua/logo/giwear-logo-email.png" alt="GIWEAR" width="120" height="29" style="display:block;height:29px;width:auto;margin-bottom:12px" />
+    <span style="font-size:18px;font-weight:700;color:#fff">Запит на наявність товару</span>
+  </td></tr>
+  <tr><td style="padding:20px 24px 8px">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="color:#666;padding-bottom:6px;font-size:13px">Імʼя</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.name}</td></tr>
+      <tr><td style="color:#666;padding-bottom:6px;font-size:13px">Телефон</td><td align="right" style="padding-bottom:6px"><a href="tel:${body.phone}" style="color:#E8232A;text-decoration:none;font-size:13px">${body.phone}</a></td></tr>
+      ${body.email ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Email</td><td align="right" style="padding-bottom:6px"><a href="mailto:${body.email}" style="color:#e0e0e0;text-decoration:none;font-size:13px">${body.email}</a></td></tr>` : ''}
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 24px 8px"><hr style="border:none;border-top:1px solid #252525;margin:0"></td></tr>
+  <tr><td style="padding:8px 24px 20px">
+    <p style="color:#888;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">Товар</p>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="color:#666;padding-bottom:6px;font-size:13px">Назва</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px;max-width:300px;word-break:break-word">${body.productName}</td></tr>
+      ${body.brand ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Бренд</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.brand}</td></tr>` : ''}
+      ${body.color ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Колір</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.color}</td></tr>` : ''}
+      ${body.size ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Розмір</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.size}</td></tr>` : ''}
+      ${body.fit ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Крій</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.fit}</td></tr>` : ''}
+      ${body.vendorCode ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Артикул</td><td align="right" style="color:#e0e0e0;padding-bottom:6px;font-size:13px">${body.vendorCode}</td></tr>` : ''}
+      ${body.restockDate ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Очікувана поставка</td><td align="right" style="color:#D97706;padding-bottom:6px;font-size:13px;font-weight:600">${body.restockDate}</td></tr>` : ''}
+      ${body.productUrl ? `<tr><td style="color:#666;padding-bottom:6px;font-size:13px">Сторінка</td><td align="right" style="padding-bottom:6px"><a href="${body.productUrl}" style="color:#E8232A;font-size:12px;word-break:break-all">${body.productUrl}</a></td></tr>` : ''}
+    </table>
+  </td></tr>
+  <tr><td style="padding:12px 24px;background:#0F0F0F;border-top:1px solid #252525;text-align:center">
+    <span style="color:#444;font-size:11px">GIWEAR — giwear.com.ua</span>
+  </td></tr>
+</table>
+</body></html>`;
+
+  const subject = `[GIWEAR] Запит на наявність · ${body.productName}${body.size ? ` (${body.size})` : ''}`;
+
+  const sendNotify = async () => {
+    const html = makeNotifyHtml();
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpUser || !smtpPass) {
+      try {
+        const p = Bun.spawn(["send-email", "--to", storeEmail, "--subject", subject, "--html", html], { env: { ...process.env }, stderr: "pipe" });
+        await p.exited;
+        console.log(`[notify] fallback email sent → ${storeEmail}`);
+      } catch (e) { console.error("[notify] fallback email failed:", e); }
+      return;
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    try {
+      await transporter.sendMail({
+        from: `"GIWEAR" <${smtpUser}>`,
+        to: storeEmail,
+        replyTo: body.email || storeEmail,
+        subject,
+        html,
+      });
+      console.log(`[notify] email sent → ${storeEmail}`);
+    } catch (err) {
+      console.error("[notify] email failed:", err);
+    }
+  };
+
+  sendNotify();
+  return c.json({ ok: true }, 200);
+});
+
 export type AppType = typeof app;
 export default app;

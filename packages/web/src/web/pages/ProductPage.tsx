@@ -3,6 +3,7 @@ import { Link } from 'wouter';
 import {
   Star, Check, MessageCircle, Package, RefreshCw, Truck,
   ChevronDown, ChevronUp, ShoppingBag, Thermometer, Ban, Wind, Gauge, ZoomIn, MinusCircle, Ruler,
+  Clock, Bell,
 } from 'lucide-react';
 
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +16,8 @@ import SizeChartModal from '../components/SizeChartModal';
 import { PRODUCT_TYPE_LABELS } from '../../lib/categories';
 import { getKitResult } from '../lib/belt-rules';
 import { getProductOverride } from '../data/product-overrides';
-import { findFitSiblings, findAllFitProducts, detectFit, FIT_CHAR_LABEL } from '../lib/fit-utils';
+import { findFitSiblings, findAllFitProducts, detectFit, FIT_CHAR_LABEL, FIT_DESCR } from '../lib/fit-utils';
+import NotifyModal from '../components/NotifyModal';
 
 /* ══════════════════════════════════════════════════════════
    Helpers
@@ -46,7 +48,26 @@ const TYPE_LABEL: Record<ProductType, string> = {
   uncategorized:'Товар',
 };
 
-/** Strip HTML entities & tags, collapse whitespace, trim */
+/* ── Clothing size sort order ── */
+const CLOTHING_SIZE_ORDER: Record<string, number> = {
+  XS: 0, S: 1, M: 2, L: 3, XL: 4,
+  '2XL': 5, 'XXL': 5,
+  '3XL': 6, 'XXXL': 6,
+  '4XL': 7, 'XXXXL': 7,
+};
+function sortClothingSizes(sizes: string[]): string[] {
+  return [...sizes].sort((a, b) => {
+    const ua = a.toUpperCase(), ub = b.toUpperCase();
+    const oa = CLOTHING_SIZE_ORDER[ua] ?? 99;
+    const ob = CLOTHING_SIZE_ORDER[ub] ?? 99;
+    if (oa !== ob) return oa - ob;
+    const na = parseFloat(a), nb = parseFloat(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+}
+
+/** Strip HTML entities & tags, collapse whitespace, trim, and remove label prefixes like "ОПИС:" */
 function cleanText(raw: string): string {
   if (!raw) return '';
   return raw
@@ -55,12 +76,18 @@ function cleanText(raw: string): string {
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
+    .replace(/&ndash;/gi, '—')
+    .replace(/&mdash;/gi, '—')
+    .replace(/&laquo;/gi, '«')
+    .replace(/&raquo;/gi, '»')
     .replace(/&#[0-9]+;/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]+>/g, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/(\r?\n){3,}/g, '\n\n')
-    .trim();
+    .trim()
+    .replace(/^(ОПИС|ОПИСАНИЕ|DESCRIPTION)\s*:?\s*/i, '');
 }
 
 function shortDesc(raw: string, maxChars = 260): string {
@@ -210,6 +237,79 @@ function AvailabilityBadge({ available }: { available: boolean }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════
+   UnavailableCard — shown instead of "В кошик" when variant is unavailable
+══════════════════════════════════════════════════════════ */
+interface UnavailableCardProps {
+  restockDate?: string;
+  onNotify: () => void;
+}
+
+function UnavailableCard({ restockDate, onNotify }: UnavailableCardProps) {
+  return (
+    <div
+      className="w-full rounded-2xl mb-2"
+      style={{
+        background: 'rgba(255,255,255,0.035)',
+        border: '1px solid rgba(255,255,255,0.09)',
+        borderLeft: '3px solid rgba(217,119,6,0.70)',
+        padding: '14px 16px 16px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.18)',
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-start gap-2.5 mb-2.5">
+        <span
+          className="shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ background: 'rgba(217,119,6,0.12)' }}
+        >
+          <Clock size={14} style={{ color: '#D97706' }} />
+        </span>
+        <div>
+          <p className="font-inter text-white text-sm font-semibold leading-snug">
+            Обраний розмір тимчасово недоступний
+          </p>
+          {restockDate ? (
+            <p className="font-inter text-[13px] mt-0.5" style={{ color: 'rgba(255,255,255,0.50)' }}>
+              Очікуємо поставку:&nbsp;
+              <span style={{ color: '#D97706', fontWeight: 500 }}>{restockDate}</span>
+            </p>
+          ) : (
+            <p className="font-inter text-[13px] mt-0.5" style={{ color: 'rgba(255,255,255,0.50)' }}>
+              Можемо повідомити вас, коли товар зʼявиться.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Notify CTA */}
+      <button
+        onClick={onNotify}
+        className="w-full flex items-center justify-center gap-2 font-inter font-semibold text-sm transition-all duration-200 active:scale-[0.98]"
+        style={{
+          padding: '10px 16px',
+          borderRadius: '10px',
+          background: 'transparent',
+          border: '1.5px solid rgba(217,119,6,0.55)',
+          color: '#F59E0B',
+          cursor: 'pointer',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(217,119,6,0.10)';
+          (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(217,119,6,0.80)';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(217,119,6,0.55)';
+        }}
+      >
+        <Bell size={15} />
+        Повідомити про наявність
+      </button>
+    </div>
+  );
+}
+
 export default function ProductPage({ id }: Props) {
   const { addItem } = useCart();
   const [selectedSize, setSelectedSize]       = useState('');
@@ -219,8 +319,10 @@ export default function ProductPage({ id }: Props) {
   const [sizeError, setSizeError]             = useState(false);
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [showFullDesc, setShowFullDesc]       = useState(false);
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
+
+  const [showOverrideDetail, setShowOverrideDetail] = useState(false);
   const [lightboxOpen, setLightboxOpen]       = useState(false);
+  const [notifyOpen, setNotifyOpen]           = useState(false);
 
   /* ── Scroll-protected tap on main photo ── */
   const imgTapRef = useRef({ startX: 0, startY: 0, moved: false });
@@ -315,13 +417,19 @@ export default function ProductPage({ id }: Props) {
 
   /* Sorted unique size list */
   const activeSizes = useMemo((): string[] => {
+    const isClothingType = product?.productType === 'tshirts' || product?.productType === 'sauna_suit';
     if (activeSizeMap.size > 0) {
-      return Array.from(activeSizeMap.keys()).sort((a, b) => {
+      const keys = Array.from(activeSizeMap.keys());
+      if (isClothingType) return sortClothingSizes(keys);
+      return keys.sort((a, b) => {
         const na = parseFloat(a), nb = parseFloat(b);
         return isNaN(na) || isNaN(nb) ? a.localeCompare(b) : na - nb;
       });
     }
-    return product?.sizes ?? [];
+    if (product?.sizes) {
+      return isClothingType ? sortClothingSizes(product.sizes) : product.sizes;
+    }
+    return [];
   }, [activeSizeMap, product]);
 
   /* When color changes, keep selected size if it exists for new color,
@@ -409,7 +517,7 @@ export default function ProductPage({ id }: Props) {
   // Compute override early so activeImages memo can use imagesBySizeGte
   // Guard against product being undefined during loading state
   const override = product
-    ? getProductOverride(product.brand, product.name, product.sportSlug, product.productType, product.density ?? '', product.isChildren ?? false)
+    ? getProductOverride(product.brand, product.name, product.sportSlug, product.productType, product.density ?? '', product.isChildren ?? false, product.id)
     : null;
 
   /* Images — size charts always last */
@@ -514,6 +622,18 @@ export default function ProductPage({ id }: Props) {
     ].filter(Boolean).join('\n')
   );
 
+  /* Telegram message for "notify when available" */
+  const telegramNotifyMsg = encodeURIComponent(
+    [
+      `Добрий день! Повідомте, будь ласка, коли буде в наявності:`,
+      `Товар: ${displayName}`,
+      displayColor ? `Колір: ${displayColor}` : '',
+      selectedSize ? `Розмір: ${selectedSize}` : '',
+      currentFit   ? `Крій: ${currentFit}`    : '',
+      displayVendorCode ? `Артикул: ${displayVendorCode}` : '',
+    ].filter(Boolean).join('\n')
+  );
+
   const rawDesc  = cleanText(product.description ?? '');
   const preview  = override?.shortDesc ?? (rawDesc ? shortDesc(rawDesc, 280) : fallbackDesc(product));
   const hasMore  = !override && rawDesc.length > preview.length + 10;
@@ -546,14 +666,11 @@ export default function ProductPage({ id }: Props) {
   const chars: { label: string; value: string }[] = [
     { label: 'Бренд',            value: product.brand },
     { label: 'Вид спорту',       value: SPORT_LABELS[product.sportSlug] ?? '' },
-    { label: 'Тип товару',       value: TYPE_LABEL[product.productType] ?? '' },
     { label: 'Щільність',        value: product.density ?? '' },
     { label: 'Крій',             value: currentFit ? FIT_CHAR_LABEL[currentFit] : '' },
     { label: 'Матеріал',         value: product.fabric ? formatMultiValue(product.fabric) : '' },
-    { label: 'Колір',            value: displayColor },
     { label: 'Вікова категорія', value: product.ageGroup ? formatAgeGroup(product.ageGroup) : '' },
     { label: 'Для кого',         value: product.forWhom ? formatForWhom(product.forWhom) : '' },
-    { label: 'Артикул',          value: displayVendorCode },
   ].filter(r => r.value && r.value.trim());
 
   const handleAddToCart = () => {
@@ -578,25 +695,112 @@ export default function ProductPage({ id }: Props) {
   };
 
   /* Breadcrumb */
-  const catHref  = product.categorySlug === 'bjj' ? '/category/bjj' : `/category/${product.categorySlug}`;
-  const catLabel = product.categorySlug === 'dytiachy' ? 'Дитячі'
-    : (PRODUCT_TYPE_LABELS[product.productType] ?? product.categorySlug);
+  // Build meaningful path — no product title, real category + subcategory links
+  const breadcrumbCrumbs: { label: string; href?: string }[] = (() => {
+    const { sportSlug, productType, isChildren, judoLevel } = product;
+
+    // ── Belts ──────────────────────────────────────────────────────────────
+    if (productType === 'belts') {
+      if (sportSlug === 'bjj' || sportSlug === 'grappling')
+        return [{ label: 'BJJ', href: '/category/bjj' }, { label: 'Пояси', href: '/category/bjj?quick=belts' }];
+      if (sportSlug === 'judo')
+        return [{ label: 'Дзюдо', href: '/category/judo' }, { label: 'Пояси', href: '/category/judo?quick=belts' }];
+      if (sportSlug === 'karate')
+        return [{ label: 'Карате', href: '/category/karate' }, { label: 'Пояси', href: '/category/karate?quick=belts' }];
+      return [{ label: 'Пояси' }];
+    }
+
+    // ── Other non-kimono ───────────────────────────────────────────────────
+    if (productType === 'bags')     return [{ label: 'Сумки та рюкзаки', href: '/category/accessories' }];
+    if (productType === 'footwear') return [{ label: 'Взуття' }];
+    if (productType === 'trainers') return [{ label: 'Тренажери', href: '/trenery' }];
+    if (productType === 'tshirts')  return [{ label: 'Футболки' }];
+
+    // ── Judo kimono ────────────────────────────────────────────────────────
+    if (sportSlug === 'judo') {
+      const base = { label: 'Дзюдо', href: '/category/judo' };
+      if (judoLevel === 'professional')
+        return [base, { label: 'Професійні IJF', href: '/category/judo?quick=professional' }];
+      if (judoLevel === 'children' || isChildren)
+        return [base, { label: 'Дитячі', href: '/category/judo?quick=children' }];
+      if (judoLevel === 'teens_adults')
+        return [base, { label: 'Підлітки та дорослі', href: '/category/judo?quick=teens_adults' }];
+      return [base];
+    }
+
+    // ── BJJ / grappling ────────────────────────────────────────────────────
+    if (sportSlug === 'bjj' || sportSlug === 'grappling') {
+      const base = { label: 'BJJ', href: '/category/bjj' };
+      if (isChildren)
+        return [base, { label: 'Дитячі', href: '/category/bjj?quick=children' }];
+      return [base, { label: 'Кімоно Gi', href: '/category/bjj?quick=teens_adults' }];
+    }
+
+    // ── Karate ─────────────────────────────────────────────────────────────
+    if (sportSlug === 'karate') {
+      const base = { label: 'Карате', href: '/category/karate' };
+      if (isChildren)
+        return [base, { label: 'Дитячі', href: '/category/karate?quick=children' }];
+      return [base, { label: 'Підлітки та дорослі', href: '/category/karate?quick=teens_adults' }];
+    }
+
+    // ── Other sports ───────────────────────────────────────────────────────
+    if (sportSlug === 'sambo')           return [{ label: 'Самбо', href: '/category/sambo' }];
+    if (sportSlug === 'aikido')          return [{ label: 'Айкідо', href: '/category/aikido' }];
+    if (sportSlug === 'rukopashnyy_biy') return [{ label: 'Рукопашний бій' }];
+
+    if (isChildren) return [{ label: 'Дитячі', href: '/category/dytiachy' }];
+    return [{ label: 'Каталог', href: '/' }];
+  })();
 
   return (
     <div className="min-h-screen bg-[#0F0F0F]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-[#A0A0A0] text-sm font-inter mb-8 flex-wrap">
-          <Link href="/" className="hover:text-[#E8232A]">Головна</Link>
-          <span>/</span>
-          <Link href={catHref} className="hover:text-[#E8232A]">{catLabel}</Link>
-          <span>/</span>
-          <span className="text-white line-clamp-1">{product.name}</span>
+        <div className="font-inter text-sm mb-6">
+          {/* Mobile: ← Sport / Subcategory — all linked */}
+          <div className="lg:hidden flex items-center gap-1.5 text-[#A0A0A0]">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><polyline points="15 18 9 12 15 6"/></svg>
+            {breadcrumbCrumbs.map((crumb, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {i > 0 && <span className="opacity-40">/</span>}
+                {crumb.href ? (
+                  <Link
+                    href={crumb.href}
+                    className={`hover:text-[#E8232A] transition-colors ${i === breadcrumbCrumbs.length - 1 ? 'text-white/70' : ''}`}
+                  >
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className={i === breadcrumbCrumbs.length - 1 ? 'text-white/70' : ''}>{crumb.label}</span>
+                )}
+              </span>
+            ))}
+          </div>
+          {/* Desktop: Головна / Sport / Subcategory — all linked */}
+          <div className="hidden lg:flex items-center gap-1.5 text-[#A0A0A0]">
+            <Link href="/" className="hover:text-[#E8232A] transition-colors">Головна</Link>
+            {breadcrumbCrumbs.map((crumb, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                <span className="opacity-40">/</span>
+                {crumb.href ? (
+                  <Link
+                    href={crumb.href}
+                    className={`hover:text-[#E8232A] transition-colors ${i === breadcrumbCrumbs.length - 1 ? 'text-white/70' : ''}`}
+                  >
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className={i === breadcrumbCrumbs.length - 1 ? 'text-white/70' : ''}>{crumb.label}</span>
+                )}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* ── TOP: Images + Buy block ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mb-8 lg:mb-10 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-12 mb-8 lg:mb-10 items-start">
 
           {/* Images */}
           <div>
@@ -631,6 +835,10 @@ export default function ProductPage({ id }: Props) {
               <img
                 src={activeImages[activeImg] ?? activeImages[0]}
                 alt={displayName}
+                loading="eager"
+                // @ts-ignore — fetchpriority is valid HTML but not yet in all TS defs
+                fetchpriority="high"
+                decoding="sync"
                 className="w-full object-contain block"
                 style={{
                   maxHeight: 'min(480px, 63vw)', minHeight: '220px',
@@ -674,7 +882,7 @@ export default function ProductPage({ id }: Props) {
                       i === activeImg ? 'border-[#E8232A]' : 'border-[#2E2E2E] hover:border-[#A0A0A0]'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -684,7 +892,7 @@ export default function ProductPage({ id }: Props) {
           {/* Buy block — sticky on desktop */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <p className="font-inter text-[#E8232A] text-sm font-semibold mb-1">{product.brand}</p>
-            <h1 className="font-unbounded text-white text-[1.05rem] lg:text-2xl font-black mb-3 leading-snug line-clamp-3 lg:line-clamp-none">
+            <h1 className="font-unbounded text-white text-[0.92rem] lg:text-2xl font-bold mb-2.5 leading-[1.35] line-clamp-3 lg:line-clamp-none">
               {displayName}
             </h1>
 
@@ -701,12 +909,12 @@ export default function ProductPage({ id }: Props) {
             )}
 
             {/* Price — from active offer */}
-            <div className="flex items-center gap-3 mb-6">
-              <span className="font-unbounded text-white text-3xl font-black">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="font-unbounded text-white text-[1.4rem] lg:text-3xl font-bold">
                 {displayPrice.toLocaleString('uk-UA')} грн
               </span>
               {displayOldPrice && (
-                <span className="font-inter text-[#A0A0A0] text-lg line-through">
+                <span className="font-inter text-[#A0A0A0] text-base lg:text-lg line-through">
                   {displayOldPrice.toLocaleString('uk-UA')} грн
                 </span>
               )}
@@ -770,22 +978,55 @@ export default function ProductPage({ id }: Props) {
             {/* Fit selector — shown when ≥2 fit siblings detected */}
             {fitSiblings.length >= 2 && currentFit && (
               <div className="mb-5">
-                <p className="font-inter text-white text-sm font-semibold mb-2">Крій</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="font-inter text-white text-sm font-semibold mb-2.5">Крій</p>
+                <div className="flex flex-wrap gap-1.5">
                   {fitSiblings.map(s => (
                     <button
                       key={s.fit}
                       onClick={() => { window.location.href = `/product/${s.productId}`; }}
-                      className={`px-4 py-2 rounded border text-sm font-inter font-medium transition-all ${
-                        s.fit === currentFit
-                          ? 'bg-[#E8232A] border-[#E8232A] text-white'
-                          : 'bg-[#1A1A1A] border-[#2E2E2E] text-white hover:border-[#E8232A]'
-                      }`}
+                      className="font-inter font-medium transition-all duration-150 active:scale-95"
+                      style={s.fit === currentFit ? {
+                        fontSize: '12.5px',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        background: '#E8232A',
+                        border: '1px solid #E8232A',
+                        color: '#fff',
+                        whiteSpace: 'nowrap',
+                      } : {
+                        fontSize: '12.5px',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        background: '#1A1A1A',
+                        border: '1px solid #2E2E2E',
+                        color: 'rgba(255,255,255,0.75)',
+                        whiteSpace: 'nowrap',
+                      }}
+                      onMouseEnter={e => {
+                        if (s.fit !== currentFit)
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(232,35,42,0.55)';
+                      }}
+                      onMouseLeave={e => {
+                        if (s.fit !== currentFit)
+                          (e.currentTarget as HTMLButtonElement).style.borderColor = '#2E2E2E';
+                      }}
                     >
                       {s.label}
                     </button>
                   ))}
                 </div>
+                {/* Active fit description */}
+                <p
+                  className="font-inter"
+                  style={{
+                    marginTop: '7px',
+                    fontSize: '11.5px',
+                    color: 'rgba(255,255,255,0.40)',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {FIT_DESCR[currentFit]}
+                </p>
               </div>
             )}
 
@@ -846,33 +1087,92 @@ export default function ProductPage({ id }: Props) {
             )}
 
             {/* CTA buttons */}
-            <div className="flex flex-col gap-3 mb-6">
-              <button
-                onClick={handleAddToCart}
-                disabled={!displayAvailable}
-                className={`w-full flex items-center justify-center gap-2 font-bold font-inter text-base py-4 rounded transition-all duration-300 ${
-                  !displayAvailable
-                    ? 'bg-[#2A2A2A] text-[#606060] cursor-not-allowed'
-                    : added
-                    ? 'bg-green-600 text-white'
-                    : 'bg-[#E8232A] hover:bg-[#C41E24] text-white'
-                }`}
-              >
-                {!displayAvailable
-                  ? <><ShoppingBag size={20} /> Немає в наявності</>
-                  : added
-                  ? <><Check size={20} /> Додано в кошик</>
-                  : <><ShoppingBag size={20} /> В кошик</>
-                }
-              </button>
-              <a
-                href={`https://t.me/gistore_ua?text=${telegramMsg}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-[#1A1A1A] border border-[#2E2E2E] hover:border-[#2AABEE] text-white font-bold font-inter text-base py-4 rounded transition-all"
-              >
-                <MessageCircle size={18} className="text-[#2AABEE]" /> Замовити через Telegram
-              </a>
+            <div className="flex flex-col gap-2 mb-6">
+              {!displayAvailable ? (
+                /* ── Unavailable variant card ── */
+                <>
+                  <UnavailableCard
+                    restockDate={activeSizeOffer?.restockDate}
+                    onNotify={() => setNotifyOpen(true)}
+                  />
+                  {/* Secondary Telegram link stays visible */}
+                  <a
+                    href={`https://t.me/gistore_ua?text=${telegramMsg}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-1.5 font-inter font-medium transition-all duration-150 active:scale-[0.99]"
+                    style={{
+                      fontSize: '12.5px',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      border: '1px solid rgba(42,171,238,0.25)',
+                      color: 'rgba(255,255,255,0.55)',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(42,171,238,0.55)';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.80)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(42,171,238,0.25)';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.55)';
+                    }}
+                  >
+                    <MessageCircle size={13} style={{ color: '#2AABEE', flexShrink: 0 }} />
+                    Швидке замовлення в Telegram
+                  </a>
+                </>
+              ) : (
+                /* ── Available: standard CTA ── */
+                <>
+                  <button
+                    onClick={handleAddToCart}
+                    className={`w-full flex items-center justify-center gap-2 font-bold font-inter text-base py-4 rounded transition-all duration-300 ${
+                      added ? 'bg-green-600 text-white' : 'text-white'
+                    }`}
+                    style={!added ? { background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)' } : undefined}
+                    onMouseEnter={e => {
+                      if (!added)
+                        (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #C41E1E 0%, #991B1B 100%)';
+                    }}
+                    onMouseLeave={e => {
+                      if (!added)
+                        (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)';
+                    }}
+                  >
+                    {added
+                      ? <><Check size={20} /> Додано в кошик</>
+                      : <><ShoppingBag size={20} /> В кошик</>
+                    }
+                  </button>
+                  {/* Telegram — secondary ghost action */}
+                  <a
+                    href={`https://t.me/gistore_ua?text=${telegramMsg}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-1.5 font-inter font-medium transition-all duration-150 active:scale-[0.99]"
+                    style={{
+                      fontSize: '12.5px',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      border: '1px solid rgba(42,171,238,0.25)',
+                      color: 'rgba(255,255,255,0.55)',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(42,171,238,0.55)';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.80)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(42,171,238,0.25)';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.55)';
+                    }}
+                  >
+                    <MessageCircle size={13} style={{ color: '#2AABEE', flexShrink: 0 }} />
+                    Швидке замовлення в Telegram
+                  </a>
+                </>
+              )}
             </div>
 
             {/* Trust chips */}
@@ -905,8 +1205,8 @@ export default function ProductPage({ id }: Props) {
                 {preview}
               </p>
 
-              {/* Characteristics grid — all from active offer */}
-              {chars.length > 0 && (
+              {/* Characteristics grid — all from active offer; hide if override has its own specs */}
+              {chars.length > 0 && !(override?.specs && Object.keys(override.specs).length > 0) && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
                   {chars.map(row => (
                     <div key={row.label}>
@@ -917,55 +1217,102 @@ export default function ProductPage({ id }: Props) {
                 </div>
               )}
 
-              {/* Full description — structured override or raw accordion */}
-              {override ? (
-                <div className="mt-5 border-t border-[#2E2E2E] pt-4 space-y-3">
-                  {/* Features — compact preview with expand */}
-                  <div>
-                    <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Особливості</p>
-                    <ul className="space-y-1.5">
-                      {/* Always visible: first 4 features (skip color/size duplicates) */}
-                      {override.features.filter(f => !/^(доступн|модель доступна|розміри?\s*:)/i.test(f.trim())).slice(0, 4).map(f => (
-                        <li key={f} className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug">
-                          <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
-                          {f}
-                        </li>
-                      ))}
-                      {/* Expandable: remaining features + audience */}
-                      {showAllFeatures && (
-                        <>
-                          {override.features.filter(f => !/^(доступн|модель доступна|розміри?\s*:)/i.test(f.trim())).slice(4).map(f => (
-                            <li key={f} className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug">
-                              <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
-                              {f}
-                            </li>
-                          ))}
-                          {override.audience && (
-                            <li className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug pt-1">
-                              <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
-                              {override.audience}
-                            </li>
-                          )}
-                        </>
-                      )}
-                    </ul>
-                    {/* Expand/collapse toggle */}
-                    {(override.features.filter(f => !/^(доступн|модель доступна|розміри?\s*:)/i.test(f.trim())).length > 4 || override.audience) && (
-                      <button
-                        onClick={() => setShowAllFeatures(v => !v)}
-                        className="mt-2.5 flex items-center gap-1 text-[#E8232A] text-xs font-inter font-medium hover:text-[#ff4a50] transition-colors"
-                      >
-                        {showAllFeatures ? 'Згорнути' : 'Показати більше'}
-                        {showAllFeatures
-                          ? <ChevronUp size={13} className="shrink-0" />
-                          : <ChevronDown size={13} className="shrink-0" />
-                        }
-                      </button>
+              {/* Full description — single accordion for both mobile and desktop */}
+              {override ? (() => {
+                const hasUsage    = !!(override.usage && override.usage.length > 0);
+                const hasWhoFor   = !!override.whoFor;
+                const hasSpecs    = !!(override.specs && Object.keys(override.specs).length > 0);
+                const hasFeats    = override.features.length > 0;
+                const hasCare2    = !!override.care2;
+                const hasExtended = hasUsage || hasWhoFor || hasSpecs || hasFeats || hasCare2;
+                if (!hasExtended) return null;
+
+                const filteredFeats = override.features.filter(
+                  f => !/^(доступн|модель доступна|розміри?\s*:)/i.test(f.trim())
+                );
+
+                return (
+                  <div className="mt-5 border-t border-[#2E2E2E] pt-4">
+                    {showOverrideDetail && (
+                      <div className="space-y-4 mb-4">
+                        {hasUsage && (
+                          <div>
+                            <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Для чого використовується</p>
+                            <ul className="space-y-1.5">
+                              {override.usage!.map(u => (
+                                <li key={u} className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug">
+                                  <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
+                                  {u}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {hasWhoFor && (
+                          <div>
+                            <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Кому підійде</p>
+                            <p className="font-inter text-[#C0C0C0] text-sm leading-snug">{override.whoFor}</p>
+                          </div>
+                        )}
+                        {hasSpecs && (
+                          <div>
+                            <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Характеристики</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                              {Object.entries(override.specs!).map(([key, val]) => (
+                                <div key={key} className="flex items-baseline gap-1.5 font-inter text-sm leading-snug min-w-0">
+                                  <span className="text-[#606060] shrink-0">{key}:</span>
+                                  <span className="text-[#C0C0C0]">{val}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {hasFeats && (
+                          <div>
+                            <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Особливості</p>
+                            <ul className="space-y-1.5">
+                              {filteredFeats.map(f => (
+                                <li key={f} className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug">
+                                  <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
+                                  {f}
+                                </li>
+                              ))}
+                              {override.audience && (
+                                <li className="flex items-start gap-2 font-inter text-[#C0C0C0] text-sm leading-snug pt-1">
+                                  <span className="text-[#E8232A] mt-0.5 shrink-0">—</span>
+                                  {override.audience}
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        {hasCare2 && (
+                          <div>
+                            <p className="font-inter text-[#888] text-xs uppercase tracking-widest mb-2">Догляд та використання</p>
+                            <p className="font-inter text-[#C0C0C0] text-sm leading-snug">{override.care2}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
+                    <button
+                      onClick={() => setShowOverrideDetail(v => !v)}
+                      className="flex items-center gap-1.5 text-[#E8232A] text-sm font-inter font-medium hover:text-[#ff4a50] transition-colors"
+                    >
+                      {showOverrideDetail ? 'Згорнути опис' : 'Показати повний опис'}
+                      {showOverrideDetail
+                        ? <ChevronUp size={15} className="shrink-0" />
+                        : <ChevronDown size={15} className="shrink-0" />
+                      }
+                    </button>
                   </div>
-                </div>
-              ) : hasMore && (
+                );
+              })() : hasMore && (
                 <div className="mt-5 border-t border-[#2E2E2E] pt-4">
+                  {showFullDesc && (
+                    <p className="font-inter text-[#A0A0A0] text-sm leading-relaxed mb-3 whitespace-pre-line">
+                      {rawDesc}
+                    </p>
+                  )}
                   <button
                     onClick={() => setShowFullDesc(v => !v)}
                     className="flex items-center gap-1.5 text-[#E8232A] text-sm font-inter font-medium"
@@ -973,11 +1320,6 @@ export default function ProductPage({ id }: Props) {
                     {showFullDesc ? 'Згорнути' : 'Повний опис'}
                     {showFullDesc ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                   </button>
-                  {showFullDesc && (
-                    <p className="font-inter text-[#A0A0A0] text-sm leading-relaxed mt-3 whitespace-pre-line">
-                      {rawDesc}
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -1030,18 +1372,24 @@ export default function ProductPage({ id }: Props) {
             {care.length > 0 && (
               <div className="bg-[#1A1A1A] border border-[#2E2E2E] rounded-xl p-6">
                 <h2 className="font-unbounded text-white text-base font-bold mb-4">Догляд за виробом</h2>
-                <ul className="space-y-2.5">
-                  {care.map((item, i) => {
-                    const careIcons = [Thermometer, Gauge, Ban, Wind];
-                    const Icon = careIcons[i] ?? Wind;
-                    return (
-                      <li key={item} className="flex items-center gap-3 font-inter text-[#C0C0C0] text-sm">
-                        <Icon size={15} className="text-[#E8232A] shrink-0" />
-                        {item}
-                      </li>
-                    );
-                  })}
-                </ul>
+                {care.length === 1 ? (
+                  <p className="font-inter text-[#D0D0D0] text-sm leading-relaxed border-l-2 border-[#E8232A] pl-4">
+                    {care[0]}
+                  </p>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {care.map((item, i) => {
+                      const careIcons = [Thermometer, Gauge, Ban, Wind];
+                      const Icon = careIcons[i] ?? Wind;
+                      return (
+                        <li key={item} className="flex items-center gap-3 font-inter text-[#C0C0C0] text-sm">
+                          <Icon size={15} className="text-[#E8232A] shrink-0" />
+                          {item}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             )}
           </div>
@@ -1165,6 +1513,22 @@ export default function ProductPage({ id }: Props) {
         onClose={() => setSizeModalOpen(false)}
         chartImages={chartImages}
         fallbackTable={chartImages.length === 0}
+      />
+
+      {/* Notify availability modal */}
+      <NotifyModal
+        open={notifyOpen}
+        onClose={() => setNotifyOpen(false)}
+        payload={{
+          productName:   displayName,
+          brand:         product?.brand ?? '',
+          color:         displayColor,
+          size:          selectedSize,
+          fit:           currentFit ?? '',
+          vendorCode:    displayVendorCode,
+          restockDate:   activeSizeOffer?.restockDate,
+          productUrl:    typeof window !== 'undefined' ? window.location.href : '',
+        }}
       />
     </div>
   );
