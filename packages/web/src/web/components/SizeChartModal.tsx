@@ -498,16 +498,53 @@ function SegmentedControl({ tabs, active, onChange }: {
   );
 }
 
+// ─── cap size content ─────────────────────────────────────────────────────────
+function CapSizeContent() {
+  return (
+    <div style={{ padding: '20px 4px 8px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{
+        padding: '16px 18px',
+        borderRadius: 12,
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+      }}>
+        <p style={{ margin: 0, color: '#fff', fontSize: 15, fontWeight: 700, lineHeight: 1.4, fontFamily: 'Inter, sans-serif' }}>
+          Розмір кепки: Universal (One Size)
+        </p>
+        <p style={{ margin: '8px 0 0', color: '#A0A0A0', fontSize: 13, lineHeight: 1.6, fontFamily: 'Inter, sans-serif' }}>
+          Кепка має універсальний розмір і регулюється ззаду за допомогою застібки.
+          Підійде більшості дорослих та підлітків.
+        </p>
+      </div>
+      <div style={{
+        padding: '12px 18px',
+        borderRadius: 10,
+        background: 'rgba(232,35,42,0.05)',
+        border: '1px solid rgba(232,35,42,0.15)',
+      }}>
+        <p style={{ margin: 0, color: '#E8232A', fontSize: 12, fontWeight: 600, lineHeight: 1.4, fontFamily: 'Inter, sans-serif' }}>
+          Потрібна додаткова інформація?
+        </p>
+        <p style={{ margin: '4px 0 0', color: '#A0A0A0', fontSize: 12, lineHeight: 1.5, fontFamily: 'Inter, sans-serif' }}>
+          Напишіть менеджеру — допоможемо з вибором.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── props ────────────────────────────────────────────────────────────────────
 interface Props {
   open: boolean;
   onClose: () => void;
   chartImages: string[];
   fallbackTable: boolean;
+  /** When true, renders cap-specific size info instead of kimono chart */
+  isCap?: boolean;
 }
 
 // ─── modal ────────────────────────────────────────────────────────────────────
-export default function SizeChartModal({ open, onClose, chartImages, fallbackTable }: Props) {
+export default function SizeChartModal({ open, onClose, chartImages, fallbackTable, isCap }: Props) {
   const tabs = buildTabs(chartImages);
   const [activeTab, setActiveTab] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -576,14 +613,14 @@ export default function SizeChartModal({ open, onClose, chartImages, fallbackTab
           className="flex items-center justify-between px-4 md:px-5 py-3 md:py-4 border-b border-[#2E2E2E]"
           style={{ flexShrink: 0, background: '#141414' }}
         >
-          <h3 className="font-inter text-white font-semibold text-base">Таблиця розмірів</h3>
+          <h3 className="font-inter text-white font-semibold text-base">{isCap ? 'Розмір кепки' : 'Таблиця розмірів'}</h3>
           <button onClick={onClose}
             className="text-[#606060] hover:text-white transition-colors p-1.5 -mr-1 rounded-lg hover:bg-[#252525]"
             aria-label="Закрити"><X size={18} /></button>
         </div>
 
         {/* Tabs */}
-        {multiTab && (
+        {!isCap && multiTab && (
           <div className="px-4 pt-3 pb-2.5 border-b border-[#1e1e1e]"
             style={{ flexShrink: 0, background: '#141414' }}>
             <SegmentedControl tabs={tabs} active={activeTab} onChange={handleTabChange} />
@@ -613,8 +650,11 @@ export default function SizeChartModal({ open, onClose, chartImages, fallbackTab
             WebkitOverflowScrolling: 'touch',
           }}
         >
+          {/* Cap size info */}
+          {isCap && <CapSizeContent />}
+
           {/* Chart image */}
-          {hasChart && (
+          {!isCap && hasChart && (
             <ZoomableImage
               key={activeTab}
               src={tabs[activeTab]?.url ?? chartImages[0]}
@@ -624,7 +664,7 @@ export default function SizeChartModal({ open, onClose, chartImages, fallbackTab
           )}
 
           {/* Fallback HTML table */}
-          {!hasChart && fallbackTable && (
+          {!isCap && !hasChart && fallbackTable && (
             <div style={{ overflowX: 'auto' }}>
               <table className="w-full text-xs font-inter border-collapse" style={{ minWidth: 280 }}>
                 <thead>

@@ -1513,6 +1513,7 @@ export default function ProductPage({ id }: Props) {
         onClose={() => setSizeModalOpen(false)}
         chartImages={chartImages}
         fallbackTable={chartImages.length === 0}
+        isCap={product?.id === '1756' || product?.id === '1759'}
       />
 
       {/* Notify availability modal */}
