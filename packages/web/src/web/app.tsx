@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Route, Switch } from "wouter";
 import { Provider } from "./components/provider";
 import { AgentFeedback } from "@runablehq/website-runtime";
@@ -9,15 +10,27 @@ import ScrollToTop from "./components/ScrollToTop";
 import CartDrawer from "./components/CartDrawer";
 import FloatingContact from "./components/FloatingContact";
 
+// Eagerly load the most critical page
 import HomePage from "./pages/index";
-import CategoryPage from "./pages/CategoryPage";
-import ProductPage from "./pages/ProductPage";
-import TrainersPage from "./pages/TrainersPage";
-import DeliveryPage from "./pages/DeliveryPage";
-import ContactsPage from "./pages/ContactsPage";
-import CheckoutPage from "./pages/CheckoutPage";
-import PublicOfferPage from "./pages/PublicOfferPage";
-import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+
+// Lazy-load heavy pages — each gets its own JS chunk
+const CategoryPage    = lazy(() => import("./pages/CategoryPage"));
+const ProductPage     = lazy(() => import("./pages/ProductPage"));
+const TrainersPage    = lazy(() => import("./pages/TrainersPage"));
+const DeliveryPage    = lazy(() => import("./pages/DeliveryPage"));
+const ContactsPage    = lazy(() => import("./pages/ContactsPage"));
+const CheckoutPage    = lazy(() => import("./pages/CheckoutPage"));
+const PublicOfferPage = lazy(() => import("./pages/PublicOfferPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
+
+// Minimal spinner shown while a lazy chunk is loading
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-[#0F0F0F] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[#E8232A] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -29,6 +42,7 @@ function App() {
           <Header />
           <CartDrawer />
           <main className="flex-1">
+            <Suspense fallback={<PageLoader />}>
             <Switch>
               <Route path="/" component={HomePage} />
               <Route path="/category/karate" component={() => <CategoryPage category="karate" />} />
@@ -39,6 +53,7 @@ function App() {
               <Route path="/category/children" component={() => <CategoryPage category="children" />} />
               <Route path="/category/dytiachy" component={() => <CategoryPage category="dytiachy" />} />
               <Route path="/category/accessories" component={() => <CategoryPage category="accessories" />} />
+              <Route path="/category/brand" component={() => <CategoryPage category="brand" />} />
               <Route path="/category/bags" component={() => <CategoryPage category="bags" />} />
               <Route path="/category/trainers" component={() => <CategoryPage category="trainers" />} />
               <Route path="/product/:id">
@@ -62,6 +77,7 @@ function App() {
                 </div>
               </Route>
             </Switch>
+            </Suspense>
           </main>
           <Footer />
           <FloatingContact />

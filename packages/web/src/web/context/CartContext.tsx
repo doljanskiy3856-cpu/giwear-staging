@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import type { Product } from '../data/products';
 
 export type CartItem = {
@@ -78,8 +78,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
+  const value = useMemo(
+    () => ({ items, count, total, isOpen, openCart, closeCart, addItem, removeItem, updateQty, clearCart }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, count, total, isOpen]
+  );
+
   return (
-    <CartContext.Provider value={{ items, count, total, isOpen, openCart, closeCart, addItem, removeItem, updateQty, clearCart }}>
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );
