@@ -91,7 +91,7 @@ async function main() {
     '</urlset>',
   ].join('\n');
 
-  const distDir = join(import.meta.dir, '..', 'dist');
+  const distDir = join(import.meta.dir, '..', '..', 'dist');
   if (!existsSync(distDir)) {
     mkdirSync(distDir, { recursive: true });
   }
