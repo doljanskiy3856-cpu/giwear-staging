@@ -113,12 +113,13 @@ const IJF_BLUE_IMAGES_REGULAR = [
 // ─── White IJF Slim (LEGEND 2 IJF Slim Fit white, id 1381) ───────────────────
 // Original YML photos kept + HQ size charts + white pant photos
 const IJF_WHITE_IMAGES_SLIM = [
-  "https://static.kintayo.com/images/ippon/p/ijf/white/1.jpg",
-  "https://static.kintayo.com/images/ippon/p/ijf/white/2.jpg",
-  "https://static.kintayo.com/images/ippon/p/ijf/white/3.jpg",
-  "https://static.kintayo.com/images/ippon/p/ijf/white/4.jpg",
-  "https://static.kintayo.com/images/ippon/p/ijf/white/5.jpg",
-  "https://static.kintayo.com/images/ippon/p/ijf/white/6.jpg",
+  // HQ product photos (same as Regular — same jacket/pant, Slim Fit cut)
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FX87GfPbmghcWgXN7nhA6Z%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_1EJX7ljh8mmfW6_-VxfTX.jpg",
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2F1FOr424KbAyprcqcZ56qm%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_2NNgJX8kANxfRd_Cu6TpD.jpg",
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2Fj1nqx4k8X1wmf4wOG2YC0%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_3LQrvFPV7qWOfM_Jwx-P9.jpg",
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FFH9USA5zX6jUG1iv9PA5x%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_4YeRzpO9xJ5m5K_fON7iA.jpg",
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FttVJtv_nT8Uxdrcc6ef7f%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_55L4KWxMQYNST9_YNyFC1.jpg",
+  "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FGvgJBfdN6vLvvUTec8t2w%2FIPPONGEAR_Legend_2_IJF_Judo_Uniform_Jacket_white_6O0hAgHuXQsPxd_ZlqZ4I.jpg",
   "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FbJweFdQma_U0sspXHfJ9B%2FSize-chart-IG-IJF-Judojacke-Legend-2_(1)_dEMKFo.jpg",
   "https://storage.googleapis.com/runable-templates/cli-uploads%2FHxnzh2CIjZWbUrO5fO4T2SQ43ZutJB5h%2FcZ7QbxMRVcqszKpuoXudU%2FSize-chart-IG-IJF-Judo-Pant_(1)_Zy_TsY.jpg",
   // IJF Pant white photos
@@ -240,6 +241,13 @@ const IPPON_CHART_FUTURE_BEGINNER = "https://storage.googleapis.com/runable-temp
  * appendChartOverride: like applyImageOverride but APPENDS charts to existing images
  * rather than replacing them. Used for brands where we have charts but no new product photos.
  */
+
+// Offer IDs to exclude from the catalog entirely (raw YML offer id, not offerId).
+// Use this to hide specific accidental/incorrect offers without touching YML parser.
+// Format: Set<rawOfferId>
+const EXCLUDED_OFFER_IDS = new Set<string>([
+  "110_2-45", // IPPON GEAR CLAIM Світло-сірий XL — випадкова позиція
+]);
 
 // Images to strip from YML feed output per groupId (e.g. old/duplicate size charts).
 // Applied before chart appending in applyImageOverride.
@@ -604,7 +612,16 @@ function parseXML(xml: string): { categories: Map<string, { name: string; parent
   return { categories, offers };
 }
 function getCategoryPath(catId: string, categories: Map<string, { name: string; parentId?: string }>): string[] { const path: string[] = []; const visited = new Set<string>(); let current = catId; while (current && categories.has(current) && !visited.has(current)) { visited.add(current); const cat = categories.get(current)!; path.unshift(cat.name); current = cat.parentId ?? ""; } return path; }
-function getBrand(rep: RawOffer): string { return rep.vendor || rep.params["Бренд"] || rep.params["Brand"] || "Unknown"; }
+function normalizeBrand(raw: string): string {
+  const up = raw.trim().toUpperCase();
+  if (/^TM\s+KINTAYO$|^KINTAYO$/.test(up)) return 'KINTAYO';
+  // preserve exact casing for known brands, pass others through as-is
+  return raw.trim();
+}
+function getBrand(rep: RawOffer): string {
+  const raw = rep.vendor || rep.params["Бренд"] || rep.params["Brand"] || "Unknown";
+  return normalizeBrand(raw);
+}
 function getSize(o: RawOffer): string { return o.params["Зріст"] || o.params["Розмір"] || o.params["Довжина"] || o.params["Довжина пояса"] || ""; }
 
 /** Extract bag/backpack/luggage size from params or product name.
@@ -760,9 +777,9 @@ function sortSizes(offers: RawOffer[]): RawOffer[] {
  * Based on brand + model name, NOT on size ranges.
  *
  * Rules (evaluated in order):
- *  professional → LEGEND 2 (IJF approved/licensed models)
+ *  professional → LEGEND 2 IJF (certified) + ULTRALIGHT (pro positioning, NOT IJF approved)
  *  children     → NXT, FUTURE 2, FUTURE 2.0, Koka, BEGINNER (isChildren=true models)
- *  teens_adults → ULTRALIGHT, BASIC 2, ADVANCED, PRO, Wazari, Yuko (adult), and default adult
+ *  teens_adults → BASIC 2, ADVANCED, PRO, Wazari, Yuko (adult), and default adult
  *
  * Only meaningful for judo kimono; returns undefined for everything else.
  */
@@ -775,16 +792,59 @@ function detectJudoLevel(
 ): Product['judoLevel'] {
   if (sportSlug !== 'judo' || productType !== 'kimono') return undefined;
   const n = name.toUpperCase();
-  const b = brand.toUpperCase();
-  // Professional / IJF certified
-  if (n.includes('LEGEND 2')) return 'professional';
+  // Professional: LEGEND 2 IJF (certified) + ULTRALIGHT (pro-level, NOT IJF approved)
+  if (n.includes('LEGEND 2') || n.includes('ULTRALIGHT')) return 'professional';
   // Children / juniors (model-based, not size-based)
   if (n.includes('NXT') || n.includes('FUTURE 2') || n.includes('FUTURE 2.0') || n.includes('KOKA') || n.includes('BEGINNER')) return 'children';
   if (entryIsChildren && (n.includes('YUKO') || n.includes('KOKA'))) return 'children';
-  // ULTRALIGHT: teens_adults (shown in both teens_adults AND professional filters via CategoryPage logic)
-  if (n.includes('ULTRALIGHT')) return 'teens_adults';
   // Default: children=true → children, else teens_adults
   return entryIsChildren ? 'children' : 'teens_adults';
+}
+
+/**
+ * detectModelSeries — extracts a clean, normalized series/model name from brand + product name.
+ * Used to power the "Серія / модель" filter in CategoryPage.
+ *
+ * Rules evaluated in order per brand. Returns undefined when no meaningful series applies
+ * (e.g. generic BUDOGI kimono without explicit series designation).
+ */
+function detectModelSeries(brand: string, name: string): string | undefined {
+  const n = name.toUpperCase();
+  const b = brand.toUpperCase();
+
+  // ── IPPON GEAR ────────────────────────────────────────────────────────────
+  if (b.includes('IPPON')) {
+    if (n.includes('LEGEND 2') && n.includes('WOMEN'))    return 'Legend 2 IJF Women';
+    if (n.includes('LEGEND 2') && (n.includes('SLIM')))   return 'Legend 2 IJF Slim';
+    if (n.includes('LEGEND 2'))                            return 'Legend 2 IJF';
+    if (n.includes('ULTRALIGHT') && n.includes('SLIM'))   return 'ULTRALIGHT Slim Fit';
+    if (n.includes('ULTRALIGHT'))                          return 'ULTRALIGHT';
+    if (n.includes('BASIC 2'))                             return 'BASIC 2';
+    if (n.includes('NXT') && n.includes('RED'))            return 'NXT Red';
+    if (n.includes('NXT'))                                 return 'NXT';
+    if (n.includes('FUTURE 2') && n.includes('PINK'))      return 'Future 2 Pink';
+    if (n.includes('FUTURE 2') || n.includes('FUTURE 2.0')) return 'Future 2';
+    return undefined;
+  }
+
+  // ── BUDOGI ────────────────────────────────────────────────────────────────
+  if (b.includes('BUDOGI')) {
+    if (n.includes('BEGINNER'))  return 'BEGINNER';
+    if (n.includes('ADVANCED'))  return 'ADVANCED';
+    if (n.includes('PRO'))       return 'PRO';
+    // Generic BUDOGI without series keyword — skip (not meaningful for filter)
+    return undefined;
+  }
+
+  // ── KINTAYO ───────────────────────────────────────────────────────────────
+  if (b.includes('KINTAYO')) {
+    if (n.includes('WAZARI')) return 'Wazari';
+    if (n.includes('YUKO'))   return 'Yuko';
+    if (n.includes('KOKA'))   return 'Koka';
+    return undefined;
+  }
+
+  return undefined;
 }
 
 function buildProducts(categories: Map<string, { name: string; parentId?: string }>, offers: RawOffer[]): Product[] {
@@ -795,7 +855,12 @@ function buildProducts(categories: Map<string, { name: string; parentId?: string
   }
   const products: Product[] = [];
 
-  for (const [groupId, groupOffers] of groups) {
+  for (const [groupId, groupOffersRaw] of groups) {
+    if (!groupOffersRaw.length) continue;
+    // Filter out excluded offers before processing
+    const groupOffers = EXCLUDED_OFFER_IDS.size > 0
+      ? groupOffersRaw.filter(o => !EXCLUDED_OFFER_IDS.has(o.id))
+      : groupOffersRaw;
     if (!groupOffers.length) continue;
     const rep = groupOffers[0];
     const catPath = getCategoryPath(rep.categoryId, categories);
@@ -1054,6 +1119,7 @@ function buildProducts(categories: Map<string, { name: string; parentId?: string
         care: [],
         description: baseDesc,
         judoLevel: detectJudoLevel(getBrand(rep), rep.name, sportSlug, productType, entryIsChildren),
+        modelSeries: detectModelSeries(getBrand(rep), rep.name),
         isHit: false,
         isNew: false,
         relatedIds: [],
@@ -1185,6 +1251,7 @@ function buildProducts(categories: Map<string, { name: string; parentId?: string
         care: [],
         description: baseDesc,
         judoLevel: detectJudoLevel(getBrand(rep), rep.name, sportSlug, productType, isChildren),
+        modelSeries: detectModelSeries(getBrand(rep), rep.name),
         isHit: false,
         isNew: false,
         relatedIds: [],

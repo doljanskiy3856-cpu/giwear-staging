@@ -12,6 +12,8 @@ export type OfferEntry = {
   name: string;
   vendorCode: string;
   available: boolean;
+  /** ISO date string or human-readable UA date, e.g. "10 липня" or "2024-07-10" */
+  restockDate?: string;
 };
 
 export type ProductVariant = {
@@ -81,6 +83,12 @@ export type Product = {
    * Only set for judo kimono; undefined for belts, bags, other sports.
    */
   judoLevel?: 'children' | 'teens_adults' | 'professional';
+  /**
+   * modelSeries — normalized series/model name for "Серія / модель" filter.
+   * Extracted from brand + product name. Undefined when series can't be determined.
+   * Examples: "FUTURE 2", "NXT Red", "LEGEND 2 IJF", "ULTRALIGHT", "BEGINNER", "Koka"
+   */
+  modelSeries?: string;
   isHit?: boolean;
   isNew?: boolean;
   relatedIds: string[];

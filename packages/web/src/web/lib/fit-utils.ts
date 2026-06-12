@@ -11,18 +11,25 @@ import type { Product } from '../data/products';
 
 export type FitKind = 'slim' | 'regular' | 'women';
 
-/** Map FitKind → display label shown in the selector */
+/** Map FitKind → short label shown inside selector buttons */
 export const FIT_LABEL: Record<FitKind, string> = {
   regular: 'Regular',
   slim:    'Slim Fit',
   women:   'Women',
 };
 
+/** Map FitKind → description shown below the selector (Ukrainian) */
+export const FIT_DESCR: Record<FitKind, string> = {
+  regular: 'Стандартний крій',
+  slim:    'Приталений крій',
+  women:   'Жіночий крій',
+};
+
 /** Map FitKind → label for the "Крій" characteristics row */
 export const FIT_CHAR_LABEL: Record<FitKind, string> = {
-  regular: 'Regular Fit',
+  regular: 'Regular',
   slim:    'Slim Fit',
-  women:   'Women Fit',
+  women:   'Women',
 };
 
 /**

@@ -11166,31 +11166,6 @@
             "available": true
           }
         ]
-      },
-      {
-        "color": "Світло-сірий",
-        "colorHex": "#808080",
-        "images": [
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/1.jpg",
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/2.jpg",
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/3.jpg",
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/4.jpg",
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/5.jpg",
-          "https://static.kintayo.com/images/ippon/p/t-shirt/grey/6.jpg"
-        ],
-        "name": "Сіра футболка IPPON GEAR CLAIM XL",
-        "price": 990,
-        "vendorCode": "TGXL",
-        "offers": [
-          {
-            "offerId": "110_2-45",
-            "size": "XL",
-            "price": 990,
-            "name": "Сіра футболка IPPON GEAR CLAIM XL",
-            "vendorCode": "TGXL",
-            "available": true
-          }
-        ]
       }
     ],
     "sizes": [
@@ -11198,8 +11173,8 @@
       "L",
       "M",
       "S",
-      "XL",
-      "XS"
+      "XS",
+      "XL"
     ],
     "size": "XS",
     "color": "Сірий",
