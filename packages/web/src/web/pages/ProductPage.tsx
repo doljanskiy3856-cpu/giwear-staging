@@ -1514,6 +1514,7 @@ export default function ProductPage({ id }: Props) {
         chartImages={chartImages}
         fallbackTable={chartImages.length === 0}
         isCap={product?.id === '1756' || product?.id === '1759'}
+        isSaunaSuit={product?.productType === 'sauna_suit'}
       />
 
       {/* Notify availability modal */}
