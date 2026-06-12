@@ -315,6 +315,58 @@ app.post("/orders", async (c) => {
   return c.json({ ok: true, orderId }, 200);
 });
 
+// ─── KeyCRM helper ───────────────────────────────────────────────────────────
+async function createKeyCrmNotifyOrder(data: {
+  fullName: string;
+  phone: string;
+  email?: string;
+  productName: string;
+  brand?: string;
+  color?: string;
+  size?: string;
+  fit?: string;
+  vendorCode?: string;
+  productUrl?: string;
+}): Promise<void> {
+  const key = process.env.KEYCRM_API_KEY;
+  if (!key) {
+    console.warn("[keycrm] KEYCRM_API_KEY not set — skipping");
+    return;
+  }
+
+  const lines = [
+    "Notify availability from GIWEAR",
+    `Товар: ${data.productName}`,
+    data.brand     ? `Бренд: ${data.brand}`         : null,
+    data.color     ? `Колір: ${data.color}`          : null,
+    data.size      ? `Розмір: ${data.size}`          : null,
+    data.fit       ? `Крій: ${data.fit}`             : null,
+    data.vendorCode ? `Артикул: ${data.vendorCode}`  : null,
+    data.productUrl ? `Сторінка: ${data.productUrl}` : null,
+  ].filter(Boolean);
+
+  const res = await fetch("https://openapi.keycrm.app/v1/order", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_name: "GIWEAR",
+      buyer: {
+        full_name: data.fullName,
+        phone: data.phone,
+        ...(data.email ? { email: data.email } : {}),
+      },
+      buyer_comment: lines.join("\n"),
+    }),
+  });
+
+  const json = await res.json() as { id?: number };
+  if (!res.ok) throw new Error(JSON.stringify(json));
+  console.log(`[keycrm] order created: ${json.id}`);
+}
+
 // ─── POST /api/notify-availability ───────────────────────────────────────────
 // Receives a "notify when available" request and sends email to store manager.
 app.post("/notify-availability", async (c) => {
@@ -422,6 +474,21 @@ app.post("/notify-availability", async (c) => {
   };
 
   sendNotify();
+
+  // ── KeyCRM: create order (fire-and-forget) ───────────────────────────────
+  createKeyCrmNotifyOrder({
+    fullName: body.name,
+    phone: body.phone,
+    email: body.email,
+    productName: body.productName,
+    brand: body.brand,
+    color: body.color,
+    size: body.size,
+    fit: body.fit,
+    vendorCode: body.vendorCode,
+    productUrl: body.productUrl,
+  }).catch((e: Error) => console.error("[keycrm] error:", e.message));
+
   return c.json({ ok: true }, 200);
 });
 
