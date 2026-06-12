@@ -34,25 +34,25 @@ function UL({ items }: { items: string[] }) {
 function ReqBlock() {
   return (
     <div className="bg-[#1A1A1A] border border-[#2E2E2E] rounded-xl p-4 lg:p-5 space-y-1.5 font-inter text-sm">
-      <p className="text-white font-semibold mb-2">Продавець:</p>
-      <p className="text-[#B0B0B0]">Отримувач: <span className="text-white">Должанський Данііл Сергійович</span></p>
-      <p className="text-[#B0B0B0]">ІПН/ЄДРПОУ: <span className="text-white">3919006453</span></p>
-      <p className="text-[#B0B0B0]">IBAN: <span className="text-white">UA163220010000026205363783574</span></p>
-      <p className="text-[#B0B0B0]">Банк: <span className="text-white">АТ «УНІВЕРСАЛ БАНК»</span></p>
-      <p className="text-[#B0B0B0]">Адреса реєстрації: <span className="text-white">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
-      <p className="text-[#B0B0B0]">
+      <p className="text-[#E6E6E6] font-semibold mb-2">Продавець:</p>
+      <p className="text-[#8F8F8F]">Отримувач: <span className="text-[#E6E6E6]">Должанський Данііл Сергійович</span></p>
+      <p className="text-[#8F8F8F]">ІПН/ЄДРПОУ: <span className="text-[#E6E6E6]">3919006453</span></p>
+      <p className="text-[#8F8F8F]">IBAN: <span className="text-[#E6E6E6]">UA163220010000026205363783574</span></p>
+      <p className="text-[#8F8F8F]">Банк: <span className="text-[#E6E6E6]">АТ «УНІВЕРСАЛ БАНК»</span></p>
+      <p className="text-[#8F8F8F]">Адреса реєстрації: <span className="text-[#E6E6E6]">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
+      <p className="text-[#8F8F8F]">
         Email:{' '}
         <a href="mailto:doljanskiy3856@gmail.com" className="text-[#E8232A] hover:underline">
           doljanskiy3856@gmail.com
         </a>
       </p>
-      <p className="text-[#B0B0B0]">
+      <p className="text-[#8F8F8F]">
         Телефон:{' '}
         <a href="tel:+380668564845" className="text-[#E8232A] hover:underline">
           +380 66 856 48 45
         </a>
       </p>
-      <div className="text-[#B0B0B0] flex flex-wrap gap-x-3 gap-y-1">
+      <div className="text-[#8F8F8F] flex flex-wrap gap-x-3 gap-y-1">
         <span>Месенджери:</span>
         <a href="https://t.me/gistore_ua" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">Telegram</a>
         <span className="text-[#3A3A3A]">·</span>
@@ -197,23 +197,23 @@ export default function PublicOfferPage() {
 
         <Section title="14. Контакти Продавця">
           <div className="bg-[#1A1A1A] border border-[#2E2E2E] rounded-xl p-4 lg:p-5 space-y-2 font-inter text-sm">
-            <p className="text-white font-semibold text-base mb-3">GIWEAR</p>
-            <p className="text-[#B0B0B0]">Інтернет-магазин: <span className="text-white">GIWEAR</span></p>
-            <p className="text-[#B0B0B0]">Сайт: <a href="https://giwear.com.ua" className="text-[#E8232A] hover:underline">giwear.com.ua</a></p>
-            <p className="text-[#B0B0B0]">Отримувач: <span className="text-white">Должанський Данііл Сергійович</span></p>
-            <p className="text-[#B0B0B0]">ІПН/ЄДРПОУ: <span className="text-white">3919006453</span></p>
-            <p className="text-[#B0B0B0]">IBAN: <span className="text-white">UA163220010000026205363783574</span></p>
-            <p className="text-[#B0B0B0]">Банк: <span className="text-white">АТ «УНІВЕРСАЛ БАНК»</span></p>
-            <p className="text-[#B0B0B0]">Адреса: <span className="text-white">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
-            <p className="text-[#B0B0B0]">
+            <p className="text-[#E6E6E6] font-semibold text-base mb-3">GIWEAR</p>
+            <p className="text-[#8F8F8F]">Інтернет-магазин: <span className="text-[#E6E6E6]">GIWEAR</span></p>
+            <p className="text-[#8F8F8F]">Сайт: <a href="https://giwear.com.ua" className="text-[#E8232A] hover:underline">giwear.com.ua</a></p>
+            <p className="text-[#8F8F8F]">Отримувач: <span className="text-[#E6E6E6]">Должанський Данііл Сергійович</span></p>
+            <p className="text-[#8F8F8F]">ІПН/ЄДРПОУ: <span className="text-[#E6E6E6]">3919006453</span></p>
+            <p className="text-[#8F8F8F]">IBAN: <span className="text-[#E6E6E6]">UA163220010000026205363783574</span></p>
+            <p className="text-[#8F8F8F]">Банк: <span className="text-[#E6E6E6]">АТ «УНІВЕРСАЛ БАНК»</span></p>
+            <p className="text-[#8F8F8F]">Адреса: <span className="text-[#E6E6E6]">Україна, 52001, Дніпропетровська обл., Дніпровський р-н, місто Підгороднє, вул. Чарівна, будинок 51</span></p>
+            <p className="text-[#8F8F8F]">
               Телефон:{' '}
               <a href="tel:+380668564845" className="text-[#E8232A] hover:underline">+380 66 856 48 45</a>
             </p>
-            <p className="text-[#B0B0B0]">
+            <p className="text-[#8F8F8F]">
               Email:{' '}
               <a href="mailto:doljanskiy3856@gmail.com" className="text-[#E8232A] hover:underline">doljanskiy3856@gmail.com</a>
             </p>
-            <div className="text-[#B0B0B0] flex flex-wrap gap-x-3 gap-y-1">
+            <div className="text-[#8F8F8F] flex flex-wrap gap-x-3 gap-y-1">
               <span>Месенджери:</span>
               <a href="https://t.me/gistore_ua" target="_blank" rel="noopener noreferrer" className="text-[#E8232A] hover:underline">Telegram</a>
               <span className="text-[#3A3A3A]">·</span>
