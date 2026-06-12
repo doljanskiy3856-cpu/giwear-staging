@@ -3,7 +3,10 @@ import { cors } from "hono/cors";
 import { fetchCatalog } from "./yml-catalog";
 import nodemailer from "nodemailer";
 
-const app = new Hono().basePath("api");
+// Root app — handles /sitemap.xml, /robots.txt (no basePath)
+const root = new Hono();
+
+const app = new Hono();
 app.use("/*", cors());
 const NP_URL = "https://api.novaposhta.ua/v2.0/json/";
 
@@ -629,7 +632,18 @@ function xmlUrl(loc: string, priority: string, changefreq: string): string {
   return `  <url>\n    <loc>${escapeXml(loc)}</loc>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
 }
 
-app.get('/sitemap.xml', async (c) => {
+// ─── Root-level routes (no /api prefix) ──────────────────────────────────────
+
+root.get('/robots.txt', (c) => {
+  const siteUrl = (process.env.VITE_SITE_URL ?? 'https://giwear.com.ua').replace(/\/$/, '');
+  return c.text(
+    `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /cart\nDisallow: /checkout\n\nSitemap: ${siteUrl}/sitemap.xml`,
+    200,
+    { 'Content-Type': 'text/plain; charset=utf-8' }
+  );
+});
+
+root.get('/sitemap.xml', async (c) => {
   try {
     const products = await fetchCatalog();
 
@@ -663,5 +677,8 @@ app.get('/sitemap.xml', async (c) => {
   }
 });
 
+// Mount api app under /api
+root.route('/api', app);
+
 export type AppType = typeof app;
-export default app;
+export default root;
