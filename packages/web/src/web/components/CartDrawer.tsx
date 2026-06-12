@@ -133,7 +133,12 @@ export default function CartDrawer() {
               <span className="font-unbounded text-white text-xl font-black">{total.toLocaleString('uk-UA')} грн</span>
             </div>
             <Link href="/checkout" onClick={closeCart}>
-              <button className="w-full bg-[#E8232A] hover:bg-[#C41E24] text-white font-bold font-inter text-base py-4 rounded flex items-center justify-center gap-2 transition-all">
+              <button
+                className="w-full text-white font-bold font-inter text-base py-4 rounded flex items-center justify-center gap-2 transition-all duration-200"
+                style={{ background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #C41E1E 0%, #991B1B 100%)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)'; }}
+              >
                 Оформити замовлення <ArrowRight size={20} />
               </button>
             </Link>

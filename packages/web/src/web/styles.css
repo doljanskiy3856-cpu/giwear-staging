@@ -1,6 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -184,4 +184,29 @@ h1, h2, h3, h4, h5, h6 {
 
 .floating-contact-pulse {
   animation: floating-contact-glow 2.8s ease-in-out infinite;
+}
+
+/* ProductCard title — responsive for mobile 2-col grid */
+.gi-card-title {
+  font-family: 'Inter', sans-serif;
+  font-weight: 560;
+  line-height: 1.26;
+  letter-spacing: 0;
+  text-transform: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-size: 12.5px;
+}
+
+@media (min-width: 640px) {
+  .gi-card-title {
+    font-size: 13.5px;
+    line-height: 1.25;
+    -webkit-line-clamp: 4;
+    /* reserve space for exactly 2 lines — prevents 1-line titles from making cards too short */
+    min-height: calc(1.25em * 2);
+  }
 }

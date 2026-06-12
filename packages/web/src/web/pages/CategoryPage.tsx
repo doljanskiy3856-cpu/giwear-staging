@@ -18,12 +18,12 @@ import type { Product, ProductType } from '../data/products';
 import ProductCard from '../components/ProductCard';
 import CrossSellBlock from '../components/CrossSellBlock';
 
-import { PRODUCT_TYPE_LABELS, SIZE_DIMENSION_LABELS } from '../../lib/categories';
+import { SIZE_DIMENSION_LABELS } from '../../lib/categories';
 
 /* ══════════════════════════════════════════════════════════
    Types
 ══════════════════════════════════════════════════════════ */
-type CategoryKey = 'karate' | 'judo' | 'bjj' | 'sambo' | 'aikido' | 'children' | 'dytiachy' | 'accessories' | 'bags' | 'trainers';
+type CategoryKey = 'karate' | 'judo' | 'bjj' | 'sambo' | 'aikido' | 'children' | 'dytiachy' | 'accessories' | 'bags' | 'trainers' | 'brand';
 
 /** Categories where cross-sell "Додай до тренування" block is shown */
 const CROSS_SELL_CATEGORIES = new Set<CategoryKey>(['karate', 'judo', 'bjj', 'sambo', 'aikido', 'children', 'dytiachy']);
@@ -106,16 +106,107 @@ function beltLengthToRawSizes(lengthCmStr: string): string[] {
 }
 
 /** Sidebar filters */
+type AudienceLevel = 'children' | 'teens_adults' | 'professional';
+
 interface FilterState {
-  productTypes: ProductType[];
+  typeFilters: string[];       // FilterableTypeDef ids — replaces raw productTypes
+  audiences: AudienceLevel[]; // Для кого / рівень
   brands: string[];
+  series: string[];           // Серія / модель
   sizes: string[];
   colors: string[];
   densities: string[]; // kimono/uniform only
+  /** @deprecated legacy compat — kept so old URLs don't crash; mapped to typeFilters on read */
+  productTypes?: ProductType[];
 }
+
+/** Which audience levels to show per category, with match logic */
+interface AudienceDef {
+  id: AudienceLevel;
+  label: string;
+  match: (p: Product) => boolean;
+}
+
+const AUDIENCE_LEVELS: Partial<Record<CategoryKey, AudienceDef[]>> = {
+  judo: [
+    {
+      id: 'children',
+      label: 'Діти',
+      match: (p) =>
+        (p as any).judoLevel === 'children' ||
+        (!(p as any).judoLevel && p.isChildren === true),
+    },
+    {
+      id: 'teens_adults',
+      label: 'Підлітки та дорослі',
+      match: (p) => (p as any).judoLevel === 'teens_adults',
+    },
+    {
+      id: 'professional',
+      label: 'Професійні / IJF',
+      // LEGEND 2 IJF (certified) + ULTRALIGHT (pro positioning, NOT IJF approved) — both judoLevel='professional'
+      match: (p) => (p as any).judoLevel === 'professional',
+    },
+  ],
+  karate: [
+    {
+      id: 'children',
+      label: 'Діти',
+      match: (p) => p.isChildren === true,
+    },
+    {
+      id: 'teens_adults',
+      label: 'Підлітки та дорослі',
+      match: (p) => !p.isChildren,
+    },
+  ],
+  bjj: [
+    {
+      id: 'children',
+      label: 'Діти',
+      match: (p) => p.isChildren === true,
+    },
+    {
+      id: 'teens_adults',
+      label: 'Підлітки та дорослі',
+      match: (p) => !p.isChildren,
+    },
+  ],
+  aikido: [
+    {
+      id: 'children',
+      label: 'Діти',
+      match: (p) => p.isChildren === true,
+    },
+    {
+      id: 'teens_adults',
+      label: 'Підлітки та дорослі',
+      match: (p) => !p.isChildren,
+    },
+  ],
+  sambo: [
+    {
+      id: 'children',
+      label: 'Діти',
+      match: (p) => p.isChildren === true,
+    },
+    {
+      id: 'teens_adults',
+      label: 'Підлітки та дорослі',
+      match: (p) => !p.isChildren,
+    },
+  ],
+};
 
 /** Product types that can have density filter */
 const DENSITY_TYPES: ProductType[] = ['kimono', 'uniform'];
+
+/**
+ * Product types where the "Для кого / рівень" (audience) filter is NOT applicable.
+ * When user selects one of these types, any active audience filter is automatically cleared.
+ * This prevents the "Діти + Пояси → 0 товарів" UX bug.
+ */
+const TYPES_WITHOUT_AUDIENCE = new Set<ProductType>(['belts', 'bags', 'trainers', 'other']);
 
 // Trainers have no size filter; bags get their own bag-size filter
 const NO_SIZE_TYPES: ProductType[] = ['trainers'];
@@ -124,6 +215,62 @@ const TYPE_ORDER: ProductType[] = [
   'kimono', 'uniform', 'belts', 'footwear',
   'tshirts', 'sauna_suit', 'bags', 'trainers', 'other', 'uncategorized',
 ];
+
+/* ── FilterableType — virtual type chips that combine productType + sportSlug ── */
+interface FilterableTypeDef {
+  id: string;
+  label: string;
+  /** Real ProductType(s) this maps to — used to derive size context, density, audience compat */
+  productTypes: ProductType[];
+  match: (p: Product) => boolean;
+}
+
+const FT_JUDO_KIMONO:      FilterableTypeDef = { id: 'kimono:judo',      label: 'Кімоно для дзюдо',      productTypes: ['kimono'],            match: (p) => p.productType === 'kimono'   && p.sportSlug === 'judo' };
+const FT_BJJ_KIMONO:       FilterableTypeDef = { id: 'kimono:bjj',       label: 'Кімоно для BJJ',         productTypes: ['kimono'],            match: (p) => p.productType === 'kimono'   && p.sportSlug === 'bjj' };
+const FT_KARATE_KIMONO:    FilterableTypeDef = { id: 'kimono:karate',     label: 'Кімоно для карате',      productTypes: ['kimono'],            match: (p) => p.productType === 'kimono'   && p.sportSlug === 'karate' };
+const FT_AIKIDO_KIMONO:    FilterableTypeDef = { id: 'kimono:aikido',     label: 'Кімоно для айкідо',      productTypes: ['kimono'],            match: (p) => p.productType === 'kimono'   && p.sportSlug === 'aikido' };
+const FT_SAMBO_UNIFORM:    FilterableTypeDef = { id: 'uniform:sambo',     label: 'Форма для самбо',        productTypes: ['uniform', 'kimono'], match: (p) => (p.productType === 'uniform' || p.productType === 'kimono') && p.sportSlug === 'sambo' };
+const FT_GRAPPLING_UNIFORM:FilterableTypeDef = { id: 'uniform:grappling', label: 'Форма для греплінгу',   productTypes: ['uniform', 'kimono'], match: (p) => (p.productType === 'uniform' || p.productType === 'kimono') && p.sportSlug === 'grappling' };
+const FT_BELTS:            FilterableTypeDef = { id: 'belts',             label: 'Пояси',                  productTypes: ['belts'],             match: (p) => p.productType === 'belts' };
+const FT_BAGS:             FilterableTypeDef = { id: 'bags',              label: 'Сумки та рюкзаки',       productTypes: ['bags'],              match: (p) => p.productType === 'bags' };
+const FT_TRAINERS:         FilterableTypeDef = { id: 'trainers',          label: 'Тренажери',              productTypes: ['trainers'],          match: (p) => p.productType === 'trainers' };
+const FT_FOOTWEAR:         FilterableTypeDef = { id: 'footwear',          label: 'Взуття',                 productTypes: ['footwear'],          match: (p) => p.productType === 'footwear' };
+const FT_TSHIRTS:          FilterableTypeDef = { id: 'tshirts',           label: 'Футболки',               productTypes: ['tshirts'],           match: (p) => p.productType === 'tshirts' };
+const FT_SAUNA:            FilterableTypeDef = { id: 'sauna_suit',        label: 'Костюм-сауна',           productTypes: ['sauna_suit'],        match: (p) => p.productType === 'sauna_suit' };
+const FT_OTHER:            FilterableTypeDef = { id: 'other',             label: 'Інше',                   productTypes: ['other'],             match: (p) => p.productType === 'other' || p.productType === 'uncategorized' };
+
+/** All known FilterableTypeDefs — used for id→def lookup */
+const ALL_FT_DEFS: FilterableTypeDef[] = [
+  FT_JUDO_KIMONO, FT_BJJ_KIMONO, FT_KARATE_KIMONO, FT_AIKIDO_KIMONO,
+  FT_SAMBO_UNIFORM, FT_GRAPPLING_UNIFORM,
+  FT_BELTS, FT_BAGS, FT_TRAINERS, FT_FOOTWEAR, FT_TSHIRTS, FT_SAUNA, FT_OTHER,
+];
+
+/** Per-category ordered list of filterable types to show in drawer */
+const FILTERABLE_TYPES: Partial<Record<CategoryKey, FilterableTypeDef[]>> = {
+  judo:        [FT_JUDO_KIMONO, FT_BELTS, FT_BAGS, FT_TRAINERS, FT_TSHIRTS],
+  karate:      [FT_KARATE_KIMONO, FT_BELTS, FT_BAGS, FT_TRAINERS, FT_TSHIRTS],
+  bjj:         [FT_BJJ_KIMONO, FT_GRAPPLING_UNIFORM, FT_BELTS, FT_BAGS, FT_TRAINERS, FT_TSHIRTS],
+  sambo:       [FT_SAMBO_UNIFORM, FT_FOOTWEAR, FT_BELTS, FT_BAGS],
+  aikido:      [FT_AIKIDO_KIMONO, FT_BELTS, FT_BAGS],
+  children:    [FT_JUDO_KIMONO, FT_KARATE_KIMONO, FT_BJJ_KIMONO, FT_AIKIDO_KIMONO, FT_SAMBO_UNIFORM, FT_BELTS, FT_FOOTWEAR],
+  dytiachy:    [FT_JUDO_KIMONO, FT_KARATE_KIMONO, FT_BJJ_KIMONO, FT_AIKIDO_KIMONO, FT_SAMBO_UNIFORM, FT_BELTS, FT_FOOTWEAR],
+  accessories: [FT_BELTS, FT_BAGS, FT_TRAINERS, FT_FOOTWEAR, FT_TSHIRTS, FT_SAUNA],
+  bags:        [FT_BAGS],
+  trainers:    [FT_TRAINERS],
+  brand:       [FT_JUDO_KIMONO, FT_BJJ_KIMONO, FT_KARATE_KIMONO, FT_AIKIDO_KIMONO, FT_SAMBO_UNIFORM, FT_GRAPPLING_UNIFORM, FT_BELTS, FT_BAGS, FT_TRAINERS, FT_FOOTWEAR, FT_TSHIRTS, FT_SAUNA, FT_OTHER],
+};
+
+/** Resolve ProductType[] from active typeFilter ids — for sizeCtx, density, audience compat */
+function resolveProductTypesFromTypeFilters(activeIds: string[]): ProductType[] {
+  if (activeIds.length === 0) return [];
+  const types = new Set<ProductType>();
+  activeIds.forEach((id) => {
+    const def = ALL_FT_DEFS.find((d) => d.id === id);
+    def?.productTypes.forEach((t) => types.add(t));
+  });
+  return Array.from(types);
+}
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'popular',    label: 'Популярні' },
@@ -214,7 +361,7 @@ const configs: Record<CategoryKey, CategoryConfig> = {
   bags: {
     title: 'Сумки та рюкзаки',
     h1: 'Сумки та рюкзаки',
-    description: 'Сумки, рюкзаки та валізи для тренувань і поїздок.',
+    description: 'Зручне спорядження для тренувань, змагань і поїздок. У них легко вмістити кімоно, пояс, захист і взуття — всі разом.',
     seoDesc: 'Широкий вибір спортивних сумок, рюкзаків та валіз для єдиноборств.',
     hero: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=1200&q=80',
     query: { productType: 'bags' },
@@ -226,6 +373,14 @@ const configs: Record<CategoryKey, CategoryConfig> = {
     seoDesc: 'Тренажери, канати, резини, захвати та інший спортивний інвентар.',
     hero: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1200&q=80',
     query: { productType: 'trainers' },
+  },
+  brand: {
+    title: 'Бренд',
+    h1: 'Усі товари бренду',
+    description: 'Повний асортимент товарів обраного бренду.',
+    seoDesc: 'Кімоно, гі, сумки, тренажери та аксесуари від обраного бренду.',
+    hero: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=1200&q=80',
+    query: {},
   },
 };
 
@@ -262,17 +417,14 @@ const QUICK_FILTERS: Record<CategoryKey, QuickFilterDef[]> = {
     {
       id: 'teens_adults',
       label: 'Підлітки та дорослі',
-      // BASIC 2, ULTRALIGHT, BUDOGI ADVANCED/PRO, Kintayo Wazari/Yuko adult…
+      // BASIC 2, BUDOGI ADVANCED/PRO, Kintayo Wazari/Yuko adult…
       match: (p) => p.productType === 'kimono' && (p as any).judoLevel === 'teens_adults',
     },
     {
       id: 'professional',
       label: 'Професійні / IJF',
-      // LEGEND 2 IJF (certified) + ULTRALIGHT (professional positioning, not IJF approved)
-      match: (p) => p.productType === 'kimono' && (
-        (p as any).judoLevel === 'professional' ||
-        /ULTRALIGHT/i.test(p.name)
-      ),
+      // LEGEND 2 IJF (certified) + ULTRALIGHT (pro positioning, NOT IJF approved) — both judoLevel='professional'
+      match: (p) => p.productType === 'kimono' && (p as any).judoLevel === 'professional',
     },
     {
       id: 'belts',
@@ -600,8 +752,10 @@ function applySort(products: Product[], sort: SortKey): Product[] {
    Filter helpers
 ══════════════════════════════════════════════════════════ */
 const EMPTY: FilterState = {
-  productTypes: [],
+  typeFilters: [],
+  audiences: [],
   brands: [],
+  series: [],
   sizes: [],
   colors: [],
   densities: [],
@@ -609,8 +763,10 @@ const EMPTY: FilterState = {
 
 function filtersEqual(a: FilterState, b: FilterState) {
   return (
-    a.productTypes.join() === b.productTypes.join() &&
+    a.typeFilters.join()  === b.typeFilters.join() &&
+    a.audiences.join()    === b.audiences.join() &&
     a.brands.join()       === b.brands.join() &&
+    a.series.join()       === b.series.join() &&
     a.sizes.join()        === b.sizes.join() &&
     a.colors.join()       === b.colors.join() &&
     a.densities.join()    === b.densities.join()
@@ -618,18 +774,37 @@ function filtersEqual(a: FilterState, b: FilterState) {
 }
 
 function activeFilterCount(f: FilterState): number {
-  return f.productTypes.length + f.brands.length + f.sizes.length + f.colors.length + f.densities.length;
+  return f.typeFilters.length + f.audiences.length + f.brands.length + f.series.length + f.sizes.length + f.colors.length + f.densities.length;
 }
 
 function applyFilters(
   prods: Product[],
   f: FilterState,
   quickMatch?: QuickFilterPredicate | null,
+  audienceDefs?: AudienceDef[],
 ): Product[] {
+  // Resolve active type predicates from typeFilter ids
+  const activeTypeDefs = f.typeFilters.length
+    ? f.typeFilters.map((id) => ALL_FT_DEFS.find((d) => d.id === id)).filter(Boolean) as FilterableTypeDef[]
+    : [];
+
+  // Derived product types for audience compat check
+  const activeRealTypes = activeTypeDefs.flatMap((d) => d.productTypes);
+  const allActiveAreAudienceIncompat = activeRealTypes.length > 0 && activeRealTypes.every((t) => TYPES_WITHOUT_AUDIENCE.has(t));
+
   return prods.filter((p) => {
     if (quickMatch && !quickMatch(p)) return false;
-    if (f.productTypes.length && !f.productTypes.includes(p.productType)) return false;
+    // Type filter: product must match at least one selected FilterableTypeDef
+    if (activeTypeDefs.length && !activeTypeDefs.some((d) => d.match(p))) return false;
+    // Audience filter — only apply if:
+    // 1. we have defs for this category, AND
+    // 2. the product's type is audience-compatible (not belts/bags/trainers/other)
+    if (f.audiences.length && audienceDefs?.length && !TYPES_WITHOUT_AUDIENCE.has(p.productType) && !allActiveAreAudienceIncompat) {
+      const matchedDefs = audienceDefs.filter((d) => f.audiences.includes(d.id));
+      if (matchedDefs.length > 0 && !matchedDefs.some((d) => d.match(p))) return false;
+    }
     if (f.brands.length       && !f.brands.includes(p.brand))            return false;
+    if (f.series.length       && !f.series.includes((p as any).modelSeries ?? '')) return false;
     if (f.sizes.length) {
       if (p.productType === 'belts') {
         // f.sizes contains belt length cm values (e.g. "220")
@@ -976,17 +1151,42 @@ function SizeChip({
 function FilterPanel({
   prods,
   allProds,
+  activeProductTypes,
   filters,
   setFilters,
+  category,
 }: {
   prods: Product[];
   allProds: Product[];
+  activeProductTypes: ProductType[];
   filters: FilterState;
   setFilters: (f: FilterState) => void;
+  category?: CategoryKey;
 }) {
+  const audienceDefs = category ? (AUDIENCE_LEVELS[category] ?? []) : [];
+
+  /**
+   * typeFilterPool — the product pool used for building categoryFtDefs and counting typeFilters.
+   * On brand pages: scoped to the locked brand(s) so we only show types that brand actually has.
+   * On other pages: full allProds (includes extras like bags/belts from any brand).
+   */
+  const typeFilterPool = useMemo(() => {
+    if (category === 'brand' && filters.brands.length > 0) {
+      return allProds.filter((p) => filters.brands.includes(p.brand));
+    }
+    return allProds;
+  }, [category, allProds, filters.brands]);
+
+  /** FilterableTypeDefs available for this category — shown in drawer "Тип товару" */
+  const categoryFtDefs = useMemo(() => {
+    const defs = category ? (FILTERABLE_TYPES[category] ?? []) : ALL_FT_DEFS;
+    // Only show defs that have at least 1 product in typeFilterPool (brand-scoped on brand pages)
+    return defs.filter((d) => typeFilterPool.some(d.match));
+  }, [category, typeFilterPool]);
+
   /**
    * allProductTypes — derived from allProds (full pool including bags/belts/trainers).
-   * This gives user all available type options in the filter.
+   * Still used for density/audience compat checks.
    */
   const allProductTypes = useMemo(() => {
     const present = new Set(allProds.map((p) => p.productType));
@@ -1003,8 +1203,8 @@ function FilterPanel({
 
   /* ── size context — single dimension only ── */
   const sizeCtx = useMemo(
-    () => resolveSizeContext(filters.productTypes, allProductTypes),
-    [filters.productTypes, allProductTypes],
+    () => resolveSizeContext(activeProductTypes, allProductTypes),
+    [activeProductTypes, allProductTypes],
   );
 
   /**
@@ -1055,7 +1255,10 @@ function FilterPanel({
         new Set(
           prods
             .filter((p) => {
-              if (filters.productTypes.length && !filters.productTypes.includes(p.productType)) return false;
+              if (filters.typeFilters.length) {
+                const defs = filters.typeFilters.map((id) => ALL_FT_DEFS.find((d) => d.id === id)).filter(Boolean) as FilterableTypeDef[];
+                if (!defs.some((d) => d.match(p))) return false;
+              }
               if (filters.brands.length && !filters.brands.includes(p.brand)) return false;
               return true;
             })
@@ -1063,7 +1266,7 @@ function FilterPanel({
             .filter(Boolean),
         ),
       ).sort((a, b) => a.localeCompare(b, 'uk')),
-    [prods, filters.productTypes, filters.brands],
+    [prods, filters.typeFilters, filters.brands],
   );
 
   /* ── densities (kimono/uniform only) ── */
@@ -1071,30 +1274,70 @@ function FilterPanel({
     () => allProductTypes.filter((t) => DENSITY_TYPES.includes(t)),
     [allProductTypes],
   );
+  // Show density if: density products exist AND (no type filter active OR active types include kimono/uniform)
   const showDensity = densityTypes.length > 0 &&
-    (filters.productTypes.length === 0 || filters.productTypes.some((t) => DENSITY_TYPES.includes(t)));
+    (activeProductTypes.length === 0 || activeProductTypes.some((t) => DENSITY_TYPES.includes(t)));
 
   const allDensities = useMemo(() => {
     if (!showDensity) return [];
     const base = prods.filter((p) => {
       if (!DENSITY_TYPES.includes(p.productType)) return false;
-      if (filters.productTypes.length && !filters.productTypes.includes(p.productType)) return false;
+      if (filters.typeFilters.length) {
+        const defs = filters.typeFilters.map((id) => ALL_FT_DEFS.find((d) => d.id === id)).filter(Boolean) as FilterableTypeDef[];
+        if (!defs.some((d) => d.match(p))) return false;
+      }
       if (filters.brands.length && !filters.brands.includes(p.brand)) return false;
       if (filters.colors.length && !filters.colors.includes(p.color)) return false;
       return true;
     });
     return Array.from(new Set(base.map((p) => normalizeDensity(p.density)).filter(Boolean)))
       .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-  }, [prods, showDensity, filters.productTypes, filters.brands, filters.colors]);
+  }, [prods, showDensity, filters.typeFilters, filters.brands, filters.colors]);
+
+  /* ── series ── */
+  const allSeries = useMemo(() => {
+    const base = prods.filter((p) => {
+      if (filters.typeFilters.length) {
+        const defs = filters.typeFilters.map((id) => ALL_FT_DEFS.find((d) => d.id === id)).filter(Boolean) as FilterableTypeDef[];
+        if (!defs.some((d) => d.match(p))) return false;
+      }
+      if (filters.audiences.length && audienceDefs.length) {
+        const matchedDefs = audienceDefs.filter((d) => filters.audiences.includes(d.id));
+        if (matchedDefs.length > 0 && !matchedDefs.some((d) => d.match(p))) return false;
+      }
+      if (filters.brands.length && !filters.brands.includes(p.brand)) return false;
+      if (filters.colors.length && !filters.colors.includes(p.color)) return false;
+      return true;
+    });
+    const seen = new Map<string, number>();
+    for (const p of base) {
+      const s = (p as any).modelSeries as string | undefined;
+      if (s) seen.set(s, (seen.get(s) ?? 0) + 1);
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], 'uk'))
+      .map(([s]) => s);
+  }, [prods, filters.typeFilters, filters.audiences, filters.brands, filters.colors, audienceDefs]);
 
   /* ── count: how many products match all filters except this group ── */
   const countFor = useCallback(
-    (group: 'productTypes' | 'brands' | 'sizes' | 'colors' | 'densities', value: string): number => {
-      // For productType counting use allProds so bags/belts/trainers show real counts even when not yet selected
-      const pool = group === 'productTypes' ? allProds : prods;
+    (group: 'typeFilters' | 'audiences' | 'brands' | 'series' | 'sizes' | 'colors' | 'densities', value: string): number => {
+      // For typeFilter counting use typeFilterPool (brand-scoped on brand pages) so counts are accurate
+      const pool = group === 'typeFilters' ? typeFilterPool : prods;
       return pool.filter((p) => {
-        if (group !== 'productTypes' && filters.productTypes.length && !filters.productTypes.includes(p.productType)) return false;
-        if (group !== 'brands'       && filters.brands.length       && !filters.brands.includes(p.brand))             return false;
+        // Apply current typeFilters when counting other groups
+        if (group !== 'typeFilters' && filters.typeFilters.length) {
+          const defs = filters.typeFilters.map((id) => ALL_FT_DEFS.find((d) => d.id === id)).filter(Boolean) as FilterableTypeDef[];
+          if (!defs.some((d) => d.match(p))) return false;
+        }
+        // Audience exclusion: when counting for other groups, apply current audience filter
+        // but skip for audience-incompatible types (belts/bags/trainers/other)
+        if (group !== 'audiences' && filters.audiences.length && audienceDefs.length && !TYPES_WITHOUT_AUDIENCE.has(p.productType)) {
+          const matchedDefs = audienceDefs.filter((d) => filters.audiences.includes(d.id));
+          if (matchedDefs.length > 0 && !matchedDefs.some((d) => d.match(p))) return false;
+        }
+        if (group !== 'brands'  && filters.brands.length  && !filters.brands.includes(p.brand))  return false;
+        if (group !== 'series'  && filters.series.length  && !filters.series.includes((p as any).modelSeries ?? '')) return false;
         if (group !== 'sizes' && filters.sizes.length) {
           if (p.productType === 'belts') {
             const matches = p.sizes.some((s) => {
@@ -1106,23 +1349,30 @@ function FilterPanel({
             if (!p.sizes.some((s) => filters.sizes.includes(s))) return false;
           }
         }
-        if (group !== 'colors'       && filters.colors.length       && !filters.colors.includes(p.color))             return false;
-        if (group !== 'densities'    && filters.densities.length    && !filters.densities.includes(normalizeDensity(p.density))) return false;
-        if (group === 'productTypes') return p.productType === value;
-        if (group === 'brands')       return p.brand === value;
+        if (group !== 'colors'    && filters.colors.length    && !filters.colors.includes(p.color))                               return false;
+        if (group !== 'densities' && filters.densities.length && !filters.densities.includes(normalizeDensity(p.density)))        return false;
+        if (group === 'typeFilters') {
+          const def = ALL_FT_DEFS.find((d) => d.id === value);
+          return def ? def.match(p) : false;
+        }
+        if (group === 'audiences') {
+          const def = audienceDefs.find((d) => d.id === value);
+          return def ? def.match(p) : false;
+        }
+        if (group === 'brands')  return p.brand === value;
+        if (group === 'series')  return ((p as any).modelSeries ?? '') === value;
         if (group === 'sizes') {
           if (p.productType === 'belts') {
-            // value is a belt length cm string (e.g. "220")
             return p.sizes.some((s) => normalizeBeltSize(s) === value);
           }
           return p.sizes.includes(value);
         }
-        if (group === 'colors')       return p.color === value;
-        if (group === 'densities')    return normalizeDensity(p.density) === value;
+        if (group === 'colors')    return p.color === value;
+        if (group === 'densities') return normalizeDensity(p.density) === value;
         return true;
       }).length;
     },
-    [prods, allProds, filters],
+    [prods, typeFilterPool, filters, audienceDefs],
   );
 
   /* ── toggles ── */
@@ -1134,28 +1384,65 @@ function FilterPanel({
     });
   };
 
-  const toggleType = (t: ProductType) => {
-    const cur  = filters.productTypes;
-    const next = cur.includes(t) ? cur.filter((v) => v !== t) : [...cur, t];
-    // clear sizes when type changes — they may no longer apply
-    setFilters({ ...filters, productTypes: next, sizes: [] });
+  const toggleSeries = (s: string) => {
+    const cur = filters.series;
+    setFilters({ ...filters, series: cur.includes(s) ? cur.filter((v) => v !== s) : [...cur, s] });
+  };
+
+  const toggleAudience = (id: AudienceLevel) => {
+    const cur = filters.audiences;
+    setFilters({
+      ...filters,
+      audiences: cur.includes(id) ? cur.filter((v) => v !== id) : [...cur, id],
+    });
+  };
+
+  const toggleTypeFilter = (ftId: string) => {
+    const cur  = filters.typeFilters;
+    const next = cur.includes(ftId) ? cur.filter((v) => v !== ftId) : [...cur, ftId];
+
+    // Derive real product types from next selection for audience compat check
+    const nextRealTypes = resolveProductTypesFromTypeFilters(next);
+    const allIncompatible = nextRealTypes.length > 0 && nextRealTypes.every((pt) => TYPES_WITHOUT_AUDIENCE.has(pt));
+    const audiences = allIncompatible ? [] : filters.audiences;
+
+    setFilters({ ...filters, typeFilters: next, sizes: [], audiences });
   };
 
   return (
     <div>
       {/* ── Тип товару ── */}
-      {allProductTypes.length > 1 && (
-        <Accordion title="Тип товару" badge={filters.productTypes.length || undefined}>
-          {allProductTypes.map((t) => {
-            const cnt = countFor('productTypes', t);
+      {categoryFtDefs.length > 1 && (
+        <Accordion title="Тип товару" badge={filters.typeFilters.length || undefined}>
+          {categoryFtDefs.map((ftDef) => {
+            const cnt = countFor('typeFilters', ftDef.id);
             return (
               <CheckRow
-                key={t}
-                label={PRODUCT_TYPE_LABELS[t]}
-                checked={filters.productTypes.includes(t)}
+                key={ftDef.id}
+                label={ftDef.label}
+                checked={filters.typeFilters.includes(ftDef.id)}
                 count={cnt}
                 disabled={cnt === 0}
-                onChange={() => toggleType(t)}
+                onChange={() => toggleTypeFilter(ftDef.id)}
+              />
+            );
+          })}
+        </Accordion>
+      )}
+
+      {/* ── Для кого / рівень ── */}
+      {audienceDefs.length > 0 && (
+        <Accordion title="Для кого / рівень" badge={filters.audiences.length || undefined}>
+          {audienceDefs.map((def) => {
+            const cnt = countFor('audiences', def.id);
+            return (
+              <CheckRow
+                key={def.id}
+                label={def.label}
+                checked={filters.audiences.includes(def.id)}
+                count={cnt}
+                disabled={cnt === 0}
+                onChange={() => toggleAudience(def.id)}
               />
             );
           })}
@@ -1221,6 +1508,25 @@ function FilterPanel({
         </Accordion>
       )}
 
+      {/* ── Серія / модель ── */}
+      {allSeries.length >= 3 && (
+        <Accordion title="Серія / модель" badge={filters.series.length || undefined} defaultOpen={false}>
+          {allSeries.map((s) => {
+            const cnt = countFor('series', s);
+            return (
+              <CheckRow
+                key={s}
+                label={s}
+                checked={filters.series.includes(s)}
+                count={cnt}
+                disabled={cnt === 0}
+                onChange={() => toggleSeries(s)}
+              />
+            );
+          })}
+        </Accordion>
+      )}
+
       {/* ── Колір ── */}
       {allColors.length > 0 && (
         <Accordion title="Колір" badge={filters.colors.length || undefined} defaultOpen={false}>
@@ -1270,20 +1576,35 @@ function ActiveChips({
   setFilters,
   isBeltContext,
   isBagContext,
+  audienceDefs,
 }: {
   filters: FilterState;
   setFilters: (f: FilterState) => void;
   isBeltContext?: boolean;
   isBagContext?: boolean;
+  audienceDefs?: AudienceDef[];
 }) {
   const chips: { label: string; onRemove: () => void }[] = [];
 
-  filters.productTypes.forEach((t) =>
-    chips.push({
-      label: PRODUCT_TYPE_LABELS[t],
+  filters.typeFilters.forEach((id) => {
+    const ftDef = ALL_FT_DEFS.find((d) => d.id === id);
+    if (ftDef) chips.push({
+      label: ftDef.label,
       onRemove: () =>
-        setFilters({ ...filters, productTypes: filters.productTypes.filter((x) => x !== t), sizes: [] }),
-    }),
+        setFilters({ ...filters, typeFilters: filters.typeFilters.filter((x) => x !== id), sizes: [] }),
+    });
+  });
+  filters.audiences.forEach((id) => {
+    const def = audienceDefs?.find((d) => d.id === id);
+    if (def) {
+      chips.push({
+        label: def.label,
+        onRemove: () => setFilters({ ...filters, audiences: filters.audiences.filter((x) => x !== id) }),
+      });
+    }
+  });
+  filters.series.forEach((s) =>
+    chips.push({ label: `Серія: ${s}`, onRemove: () => setFilters({ ...filters, series: filters.series.filter((x) => x !== s) }) }),
   );
   filters.brands.forEach((b) =>
     chips.push({ label: b, onRemove: () => setFilters({ ...filters, brands: filters.brands.filter((x) => x !== b) }) }),
@@ -1352,6 +1673,10 @@ function Skeleton() {
 ══════════════════════════════════════════════════════════ */
 export default function CategoryPage({ category }: { category: CategoryKey }) {
   const cfg = configs[category as CategoryKey];
+  // For 'brand' category — read brand name from URL for dynamic title
+  const _brandSearch = typeof window !== 'undefined' ? window.location.search : '';
+  const _brandParam = new URLSearchParams(_brandSearch).get('brand') ?? '';
+  const brandLabel = _brandParam || 'Бренд';
 
   // Safety: unknown category — show friendly 404-like state
   if (!cfg) {
@@ -1368,7 +1693,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
     );
   }
 
-  const [filters, setFilters] = useState<FilterState>(EMPTY);
+  const [filters, setFiltersRaw] = useState<FilterState>(EMPTY);
   const [sort, setSort]       = useState<SortKey>('popular');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -1382,6 +1707,25 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
 
   const quickDef = quickId ? (QUICK_FILTERS[category] ?? []).find((d) => d.id === quickId) ?? null : null;
   const quickMatch: QuickFilterPredicate | null = quickDef ? quickDef.match : null;
+
+  /**
+   * Smart setFilters wrapper.
+   * When productTypes change to types incompatible with current quickId (audience-type quick),
+   * auto-clear quickId to prevent "Діти quick" + "Пояси productType" → 0 товарів.
+   */
+  const QUICK_AUDIENCE_IDS_SET = new Set(['children', 'teens_adults', 'professional']);
+  const setFilters = (next: FilterState) => {
+    // If quickId is an audience-type quick AND new typeFilters are all incompatible → clear quickId
+    // URL will be updated by the writeToUrl useEffect automatically
+    if (quickId && QUICK_AUDIENCE_IDS_SET.has(quickId) && next.typeFilters.length > 0) {
+      const nextRealTypes = resolveProductTypesFromTypeFilters(next.typeFilters);
+      const allIncompatible = nextRealTypes.length > 0 && nextRealTypes.every((pt) => TYPES_WITHOUT_AUDIENCE.has(pt));
+      if (allIncompatible) {
+        setQuickId(null);
+      }
+    }
+    setFiltersRaw(next);
+  };
 
   /** Refs for scroll anchors */
   const mobileCatalogRef  = useRef<HTMLDivElement>(null);
@@ -1413,16 +1757,45 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
   }, [scrollToRef]);
 
   /** Set or clear ?quick= param using replaceState (no re-render loop) */
+  /**
+   * Quick IDs that represent audience/level groups (NOT product types).
+   * These never conflict with productTypes filter — they filter by age/level within a type.
+   */
+  const QUICK_AUDIENCE_IDS = new Set(['children', 'teens_adults', 'professional']);
+
+  /**
+   * Quick IDs that represent product types incompatible with audience filters
+   * (belts, bags, trainers have no age/level distinction that matters for filtering).
+   */
+  const QUICK_TYPE_INCOMPATIBLE_IDS = new Set([
+    'belts', 'bags', 'trainers', 'tshirts', 'grappling',
+    'backpack', 'bag', 'suitcase', 'rope', 'grip', 'uchi', 'all',
+    'footwear', 'uniform',
+  ]);
+
   const handleQuickNavigate = (id: string | null) => {
     setQuickId(id);
-    const params = new URLSearchParams(search);
-    if (id) {
-      params.set('quick', id);
-    } else {
-      params.delete('quick');
+
+    // — Compatibility auto-reset —
+    // When switching to a type-card that's incompatible with audience filters,
+    // clear filters.productTypes (avoids quickMatch + productTypes double-filter)
+    // AND clear filters.audiences (avoids "Діти" sidebar filter conflicting)
+    let nextFilters = filters;
+    if (id !== null) {
+      if (QUICK_TYPE_INCOMPATIBLE_IDS.has(id)) {
+        // e.g. clicked "Пояси" while "Діти" quick or audience was active
+        // → clear audiences + typeFilters so only quickMatch applies
+        nextFilters = { ...filters, audiences: [], typeFilters: [], sizes: [] };
+      } else if (QUICK_AUDIENCE_IDS.has(id)) {
+        // e.g. clicked "Діти" → clear typeFilters so audience quick works on all types
+        nextFilters = { ...filters, typeFilters: [], sizes: [] };
+      } else {
+        // generic type card (kimono, uniform, etc.) — just clear sizes
+        nextFilters = { ...filters, sizes: [] };
+      }
+      if (nextFilters !== filters) setFilters(nextFilters);
     }
-    const qs = params.toString();
-    window.history.replaceState(null, '', location + (qs ? '?' + qs : ''));
+    // URL is updated by writeToUrl useEffect — no manual replaceState needed here
     // Always scroll to catalog on quick card click (mobile + desktop)
     if (id) scrollToCatalog();
   };
@@ -1446,6 +1819,10 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
     };
   }, [drawerOpen]);
 
+  /* ─────────────────────────────────────────────────────────
+     Data fetching — must be declared BEFORE scroll effects
+     so `isLoading` is available when useEffects reference it.
+  ───────────────────────────────────────────────────────── */
   const queryString = new URLSearchParams(cfg.query).toString();
 
   // Primary products — sport/children specific
@@ -1462,6 +1839,54 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
   });
 
   const isLoading = isLoadingSport || isLoadingExtra;
+
+  /* ─────────────────────────────────────────────────────────
+     Scroll position restore
+     Save scroll position to sessionStorage when navigating away,
+     restore it when returning to the same category URL.
+  ───────────────────────────────────────────────────────── */
+  const scrollKey = `catalog-scroll:${category}`;
+
+  // Save scroll on unload / pagehide (before navigating to product page)
+  useEffect(() => {
+    const save = () => {
+      sessionStorage.setItem(scrollKey, String(Math.round(window.scrollY)));
+    };
+    window.addEventListener('pagehide', save);
+    // Also save on every scroll (throttled via rAF) so back button always has fresh value
+    let rafId = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(save);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      save(); // save on unmount (SPA navigation to product page)
+      window.removeEventListener('pagehide', save);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [scrollKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore scroll once products are loaded (if we have a saved position)
+  useEffect(() => {
+    if (isLoading) return;
+    const saved = sessionStorage.getItem(scrollKey);
+    if (!saved) return;
+    const y = parseInt(saved, 10);
+    if (!y) return;
+    // Only restore if there are active filters (user is returning from a product page)
+    const p = new URLSearchParams(search);
+    const hasAny = p.has('type') || p.has('audience') || p.has('brand') || p.has('series') ||
+                   p.has('size') || p.has('color') || p.has('density') || p.has('quick');
+    if (!hasAny) return;
+    // Small delay so the grid has rendered
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, behavior: 'instant' });
+        sessionStorage.removeItem(scrollKey); // consume once
+      });
+    });
+  }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Merged pool — sport products first, then extras (de-duped by id)
   const allProds = useMemo(() => {
@@ -1486,67 +1911,134 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
    * - type filter selected → allProds (user explicitly chose a type)
    */
   const prods = useMemo(() => {
-    if (filters.productTypes.length === 0) return sportProds;
+    if (filters.typeFilters.length === 0) return sportProds;
     return allProds;
-  }, [filters.productTypes, sportProds, allProds]);
+  }, [filters.typeFilters, sportProds, allProds]);
 
-  /** Read filter state from URL params (runs once after products load per category) */
+  /** Real ProductType[] currently active (from typeFilters) — used in main component for size ctx, cross-sell, pageSizeCtx */
+  const activeProductTypes = useMemo(
+    () => resolveProductTypesFromTypeFilters(filters.typeFilters),
+    [filters.typeFilters],
+  );
+
+  /* ─────────────────────────────────────────────────────────
+     URL ↔ Filter state sync
+     All filter params are stored in URL so that:
+     - browser back from ProductPage restores the exact filter state
+     - page refresh keeps filters
+     - shareable links work
+
+     URL params used:
+       type      — productType  (multi)
+       audience  — AudienceLevel (multi)
+       brand     — brand        (multi)
+       series    — modelSeries  (multi)
+       size      — size         (multi)
+       color     — color        (multi)
+       density   — density      (multi)
+       sort      — SortKey      (single)
+       quick     — QuickFilter id (single)
+
+     Reading: once, after products are loaded (so we can validate values).
+     Writing: on every filter/sort/quickId change via replaceState (no re-render).
+  ───────────────────────────────────────────────────────── */
+
   const filtersInitialized = useRef(false);
 
+  // ── Category change: reset everything, clear URL, scroll top ──
   useEffect(() => {
-    setFilters(EMPTY);
+    setFiltersRaw(EMPTY);
     setSort('popular');
     setQuickId(null);
-    filtersInitialized.current = false; // reset so URL params are re-read for new category
-    // Clean ?quick= from URL on category change
+    filtersInitialized.current = false;
     window.history.replaceState(null, '', location);
-    // Scroll to top instantly so hero is visible, quick-choice scroll happens after data loads
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [category]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Read URL → state once after products load ──
   useEffect(() => {
     if (isLoading || filtersInitialized.current) return;
     filtersInitialized.current = true;
-    const p = new URLSearchParams(search);
-    const brands    = p.getAll('brand');
-    const sizes     = p.getAll('size');
-    const colors    = p.getAll('color');
-    const densities = p.getAll('density');
-    const types     = p.getAll('type') as ProductType[];
-    if (brands.length || sizes.length || colors.length || densities.length || types.length) {
-      setFilters({ productTypes: types, brands, sizes, colors, densities });
+
+    const p          = new URLSearchParams(search);
+    // New param: tf= (typeFilter ids). Legacy: type= mapped to equivalent tf ids for back-compat.
+    const tfRaw      = p.getAll('tf');
+    const legacyTypes = p.getAll('type') as ProductType[];
+    // Map legacy 'type' param to FilterableType ids where possible
+    const legacyMapped: string[] = [];
+    legacyTypes.forEach((t) => {
+      // map generic productType → most specific ft for this category context
+      const match = ALL_FT_DEFS.find((d) => d.productTypes.includes(t) && d.productTypes.length === 1 && d.id === t);
+      if (match) legacyMapped.push(match.id);
+    });
+    const typeFilters = [...new Set([...tfRaw, ...legacyMapped])].filter((id) => ALL_FT_DEFS.some((d) => d.id === id));
+
+    const audiences  = p.getAll('audience') as AudienceLevel[];
+    const brands     = p.getAll('brand');
+    const series     = p.getAll('series');
+    const sizes      = p.getAll('size');
+    const colors     = p.getAll('color');
+    const densities  = p.getAll('density');
+    const sortParam  = p.get('sort') as SortKey | null;
+    const quickParam = p.get('quick');
+
+    const hasFilters = typeFilters.length || audiences.length || brands.length || series.length ||
+                       sizes.length || colors.length || densities.length;
+
+    if (hasFilters) {
+      setFiltersRaw({ typeFilters, audiences, brands, series, sizes, colors, densities });
+    }
+    if (sortParam && SORT_OPTIONS.some((o) => o.key === sortParam)) {
+      setSort(sortParam);
+    }
+    if (quickParam) {
+      setQuickId(quickParam);
     }
   }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Write filters to URL params whenever they change */
-  useEffect(() => {
-    const p = new URLSearchParams(search);
-    // Remove existing filter params
-    ['brand', 'size', 'color', 'density', 'type'].forEach((k) => p.delete(k));
-    filters.productTypes.forEach((t) => p.append('type', t));
-    filters.brands.forEach((b) => p.append('brand', b));
-    filters.sizes.forEach((s) => p.append('size', s));
-    filters.colors.forEach((c) => p.append('color', c));
-    filters.densities.forEach((d) => p.append('density', d));
+  // ── Write state → URL on every change (replaceState, no history entry) ──
+  const writeToUrl = useCallback((
+    f: FilterState,
+    s: SortKey,
+    qid: string | null,
+  ) => {
+    const p = new URLSearchParams();
+    f.typeFilters.forEach((id)  => p.append('tf',       id));
+    f.audiences.forEach((a)     => p.append('audience', a));
+    f.brands.forEach((b)        => p.append('brand',    b));
+    f.series.forEach((sr)       => p.append('series',   sr));
+    f.sizes.forEach((sz)        => p.append('size',     sz));
+    f.colors.forEach((c)        => p.append('color',    c));
+    f.densities.forEach((d)     => p.append('density',  d));
+    if (s !== 'popular')          p.set('sort',    s);
+    if (qid)                      p.set('quick',   qid);
     const qs = p.toString();
     window.history.replaceState(null, '', location + (qs ? '?' + qs : ''));
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location]);
 
-  // After products load: if no quick filter selected → scroll to quick-choice section
-  // If a quick filter was pre-selected (from URL) → scroll to catalog
+  useEffect(() => {
+    if (!filtersInitialized.current) return; // don't write before we've read
+    writeToUrl(filters, sort, quickId);
+  }, [filters, sort, quickId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── After products load: scroll to right section ──
   useEffect(() => {
     if (isLoading) return;
-    if (initialQuick) {
-      // URL had ?quick= → go straight to catalog
+    const p = new URLSearchParams(search);
+    const hasAnyFilter = p.has('type') || p.has('audience') || p.has('brand') || p.has('series') ||
+                         p.has('size') || p.has('color') || p.has('density') || p.has('quick');
+    if (hasAnyFilter) {
       scrollToCatalog();
     } else {
-      // Normal navigation (from home page) → show quick-choice section
       scrollToQuickChoice();
     }
   }, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const audienceDefs = AUDIENCE_LEVELS[category as CategoryKey] ?? [];
+
   const filtered = useMemo(
-    () => applySort(applyFilters(prods, filters, quickMatch), sort),
-    [prods, filters, sort, quickMatch],
+    () => applySort(applyFilters(prods, filters, quickMatch, audienceDefs), sort),
+    [prods, filters, sort, quickMatch, audienceDefs],
   );
 
   const hasFilters  = !filtersEqual(filters, EMPTY);
@@ -1554,8 +2046,8 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
 
   /** Derive size context for ActiveChips labels */
   const pageSizeCtx = useMemo(() => {
-    const scope = filters.productTypes.length > 0
-      ? filters.productTypes
+    const scope = activeProductTypes.length > 0
+      ? activeProductTypes
       : Array.from(new Set(prods.map((p) => p.productType)));
     const sizedTypes = scope.filter((t) => !NO_SIZE_TYPES.includes(t));
     if (sizedTypes.length === 0) return { isBelt: false, isBag: false };
@@ -1563,7 +2055,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
       isBelt: sizedTypes.every((t) => t === 'belts'),
       isBag:  sizedTypes.every((t) => t === 'bags'),
     };
-  }, [filters.productTypes, prods]);
+  }, [activeProductTypes, prods]);
   const isBeltContext = pageSizeCtx.isBelt;
   const isBagContext  = pageSizeCtx.isBag;
 
@@ -1724,15 +2216,23 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
           <div className="flex items-center gap-1.5 text-[#585858] text-[11px] font-inter mb-3">
             <Link href="/" className="hover:text-[#E8232A] transition-colors">Головна</Link>
             <ChevronRight size={10} className="text-[#383838]" />
-            <span className="text-[#787878]">{cfg.title}</span>
+            <span className="text-[#787878]">{category === 'brand' ? brandLabel : cfg.title}</span>
           </div>
 
           {/* Title + description */}
           <h1 className="font-unbounded text-2xl sm:text-3xl lg:text-[2rem] font-black text-white leading-tight mb-1.5 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
-            {cfg.h1}
+            {category === 'brand' ? brandLabel : cfg.h1}
           </h1>
           <p className="font-inter text-white/60 text-sm sm:text-[15px] max-w-md leading-relaxed drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)] mb-5">
-            {cfg.description}
+            {category === 'bags' && quickId === 'backpack'
+              ? 'Рюкзаки для щоденних тренувань — компактні, зручні, влізе все необхідне для залу.'
+              : category === 'bags' && quickId === 'bag'
+              ? 'Спортивні сумки для більшого комплекту: кімоно, захист, взуття та все інше — без компромісів.'
+              : category === 'bags' && quickId === 'suitcase'
+              ? 'Валізи на колесах для виїздів, зборів і змагань — все екіпірування завжди під рукою.'
+              : category === 'brand'
+              ? `Повний асортимент товарів бренду ${brandLabel} — кімоно, гі, сумки та аксесуари.`
+              : cfg.description}
           </p>
 
           {/* ── Trust cards ── */}
@@ -1833,7 +2333,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
                     <X size={9} className="opacity-70" />
                   </button>
                 )}
-                {hasFilters && <ActiveChips filters={filters} setFilters={setFilters} isBeltContext={isBeltContext} isBagContext={isBagContext} />}
+                {hasFilters && <ActiveChips filters={filters} setFilters={setFilters} isBeltContext={isBeltContext} isBagContext={isBagContext} audienceDefs={audienceDefs} />}
               </div>
             )}
           </div>
@@ -1866,7 +2366,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
 
                 {/* filters */}
                 <div className="px-4 py-1">
-                  <FilterPanel prods={prods} allProds={allProds} filters={filters} setFilters={setFilters} />
+                  <FilterPanel prods={prods} allProds={allProds} activeProductTypes={activeProductTypes} filters={filters} setFilters={setFilters} category={category} />
                 </div>
               </div>
             </aside>
@@ -1892,7 +2392,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
                       <X size={9} className="opacity-70" />
                     </button>
                   )}
-                  {hasFilters && <ActiveChips filters={filters} setFilters={setFilters} isBeltContext={isBeltContext} isBagContext={isBagContext} />}
+                  {hasFilters && <ActiveChips filters={filters} setFilters={setFilters} isBeltContext={isBeltContext} isBagContext={isBagContext} audienceDefs={audienceDefs} />}
                 </div>
                 {/* sort */}
                 <div className="relative flex-shrink-0">
@@ -1959,7 +2459,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
       </section>
 
       {/* ══ CROSS-SELL — "Додай до тренування" ══ */}
-      {CROSS_SELL_CATEGORIES.has(category) && filters.productTypes.every((t) => !EXTRA_TYPES.has(t)) && <CrossSellBlock />}
+      {CROSS_SELL_CATEGORIES.has(category) && (activeProductTypes.length === 0 || activeProductTypes.every((t) => !EXTRA_TYPES.has(t))) && <CrossSellBlock />}
 
 
       {/* ══════════════════════════════════════════════════════
@@ -2004,7 +2504,7 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
 
         {/* scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-1 min-h-0">
-          <FilterPanel prods={prods} allProds={allProds} filters={filters} setFilters={setFilters} />
+          <FilterPanel prods={prods} allProds={allProds} activeProductTypes={activeProductTypes} filters={filters} setFilters={setFilters} category={category} />
         </div>
 
         {/* sticky footer */}

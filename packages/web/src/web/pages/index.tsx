@@ -20,10 +20,31 @@ const mainSports = [
   { slug: 'children', label: 'Дитячі',                      href: '/category/children', img: 'https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=500&q=80' },
 ];
 
-const brands = [
-  { name: 'KINTAYO', desc: 'Японська якість' },
-  { name: 'BUDOGI',  desc: 'Професійне гі' },
-  { name: 'IPPON GEAR', desc: 'Змагальне обладнання' },
+const BRAND_GUIDE = [
+  {
+    name: 'KINTAYO',
+    tagline: 'Для дзюдо, BJJ і тренувань',
+    desc: 'Універсальний бренд для регулярних тренувань, клубів і спортсменів різного рівня.',
+    tags: ['Дзюдо', 'BJJ', 'Пояси', 'Тренажери'],
+    href: '/category/brand?brand=KINTAYO',
+    accent: '#E8232A',
+  },
+  {
+    name: 'BUDOGI',
+    tagline: 'Кімоно, дитяче, BJJ, греплінг',
+    desc: 'Практичний вибір для старту, дитячих секцій і регулярних тренувань.',
+    tags: ['Кімоно', 'Дитяче', 'BJJ', 'Греплінг'],
+    href: '/category/brand?brand=BUDOGI',
+    accent: '#E8232A',
+  },
+  {
+    name: 'IPPON GEAR',
+    tagline: 'IJF-моделі, сумки, тренажери',
+    desc: 'Для спортсменів, турнірів і професійного рівня. Визнаний бренд із Німеччини.',
+    tags: ['Дзюдо', 'IJF', 'Сумки', 'Тренажери'],
+    href: '/category/brand?brand=IPPON+GEAR',
+    accent: '#E8232A',
+  },
 ];
 
 function sortProducts(products: Product[]) {
@@ -35,14 +56,120 @@ function sortProducts(products: Product[]) {
   );
 }
 
+// ─── BrandCard with scroll reveal + micro-interactions ───────────────────────
+type BrandGuideItem = typeof BRAND_GUIDE[number];
+
+function BrandCard({ brand: b, index }: { brand: BrandGuideItem; index: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.12 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(14px)',
+        transition: `opacity 0.48s ease ${index * 0.10}s, transform 0.48s ease ${index * 0.10}s`,
+      }}
+    >
+      <Link href={b.href} className="group block h-full">
+        {/* card */}
+        <div
+          className="relative h-full rounded-2xl p-4 lg:p-6 flex flex-col overflow-hidden
+            border border-[#252525]
+            bg-[#141414]
+            transition-all duration-300 ease-out
+            hover:-translate-y-[3px]
+            hover:border-[#E8232A]/55
+            hover:shadow-[0_4px_28px_rgba(232,35,42,0.11)]
+            active:scale-[0.985] active:border-[#E8232A]/40"
+        >
+          {/* radial glow — almost invisible, appears on hover via opacity */}
+          <div
+            className="pointer-events-none absolute -top-10 -right-10 w-40 h-40 rounded-full
+              bg-[radial-gradient(circle,rgba(232,35,42,0.07)_0%,transparent_70%)]
+              opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          />
+
+          {/* Brand name + tagline */}
+          <div className="mb-3 relative">
+            <p className="font-unbounded text-white text-base lg:text-lg font-black tracking-tight leading-tight">
+              {b.name}
+            </p>
+            <p className="font-inter text-[#E8232A] text-xs font-medium mt-1 uppercase tracking-wide">
+              {b.tagline}
+            </p>
+          </div>
+
+          {/* Description */}
+          <p className="font-inter text-[#909090] text-sm leading-relaxed flex-1 relative">
+            {b.desc}
+          </p>
+
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 mt-3 lg:mt-4 relative">
+            {b.tags.map(tag => (
+              <span
+                key={tag}
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: '11px',
+                  color: '#C2CDD5',
+                  background: '#252C36',
+                  border: '1px solid #4E6070',
+                  borderRadius: '6px',
+                  padding: '2px 8px',
+                  display: 'inline-block',
+                  letterSpacing: '0.02em',
+                  transition: 'background 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.background = '#2E3A46';
+                  (e.currentTarget as HTMLElement).style.borderColor = '#6A8090';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = '#252C36';
+                  (e.currentTarget as HTMLElement).style.borderColor = '#4E6070';
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="mt-3 lg:mt-5 pt-3 lg:pt-4 border-t border-[#222] relative">
+            <span className="inline-flex items-center font-inter text-[#E8232A] text-sm font-semibold">
+              <span>Дивитися {b.name}</span>
+              <ArrowRight
+                size={14}
+                className="shrink-0 ml-1.5 transition-transform duration-200 group-hover:translate-x-[4px]"
+              />
+            </span>
+          </div>
+        </div>
+      </Link>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const { data: allProducts = [] } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: () => fetch('/api/products').then(r => r.json()),
   });
   const hits = sortProducts(allProducts).filter(p => p.available).slice(0, 4);
-  const countByBrand = (name: string) =>
-    allProducts.filter(p => p.brand.toLowerCase().includes(name.toLowerCase())).length;
 
   const [slide, setSlide] = useState(0);
   useEffect(() => {
@@ -367,30 +494,24 @@ export default function HomePage() {
       <HitsSection hits={hits} />
 
       {/* ── BRANDS ── */}
-      <section className="py-8 lg:py-16 bg-[#0F0F0F] pb-24 lg:pb-16">
+      <section className="py-10 lg:py-16 bg-[#0F0F0F] pb-24 lg:pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-5 lg:mb-8">
+
+          {/* Header */}
+          <div className="mb-7 lg:mb-10">
             <span className="section-label">Бренди</span>
-            <h2 className="font-unbounded text-xl lg:text-4xl font-black text-white">Популярні бренди</h2>
+            <h2 className="font-unbounded text-xl lg:text-3xl font-black text-white mt-1 mb-2">
+              Оберіть бренд під свою дисципліну
+            </h2>
+            <p className="font-inter text-[#606060] text-sm lg:text-base">
+              KINTAYO, BUDOGI та IPPON GEAR — для дзюдо, BJJ, тренувань, дітей і професійного рівня.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-4">
-            {brands.map(b => (
-              <div
-                key={b.name}
-                className="group bg-[#141414] border border-[#252525] hover:border-[#E8232A]/50 rounded-xl p-5 flex items-center justify-between transition-all duration-300 cursor-default"
-              >
-                <div>
-                  <p className="font-unbounded text-white text-[15px] lg:text-lg font-black">{b.name}</p>
-                  <p className="font-inter text-[#606060] text-xs mt-1">{b.desc}</p>
-                  <p className="font-inter text-[#505050] text-xs mt-0.5">
-                    {countByBrand(b.name)} товарів
-                  </p>
-                </div>
-                <span className="text-[#E8232A] text-xs font-bold font-inter opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                  Дивитись <ArrowRight size={12} />
-                </span>
-              </div>
+          {/* Brand cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 items-stretch">
+            {BRAND_GUIDE.map((b, i) => (
+              <BrandCard key={b.name} brand={b} index={i} />
             ))}
           </div>
         </div>

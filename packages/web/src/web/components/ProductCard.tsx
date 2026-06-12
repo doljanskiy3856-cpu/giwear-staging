@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Link } from 'wouter';
 import { ShoppingBag, Check } from 'lucide-react';
 import type { Product, SportSlug } from '../data/products';
 import { useCart } from '../context/CartContext';
 import { getKitResult } from '../lib/belt-rules';
+import { detectFit, isFitVariantProduct } from '../lib/fit-utils';
 
 // ─── Brand label ──────────────────────────────────────────────────────────────
 
@@ -137,7 +138,8 @@ function extractSeries(name: string, brandUpper: string): string {
   }
   if (brandUpper === 'IPPON GEAR' || brandUpper === 'IPPONGEAR') {
     // Extract model: FUTURE 2 / BASIC 2 / ULTRALIGHT / LEGEND 2 / NXT / FUTURE 2.0 PINK!
-    const m = name.match(/IPPON\s*GEAR\s+([A-Z][A-Z0-9.\s!PINK]+?)(?:\s+\d{2,3}(?:см|cm|\s|$)|\s*[,(]|\s+\d+\s*$|$)/i);
+    // Stop before: numeric size (160см), clothing size (XS/S/M/L/XL/2XL/3XL/4XL/XXL), comma, paren
+    const m = name.match(/IPPON\s*GEAR\s+([A-Z][A-Z0-9.\s!PINK]+?)(?:\s+(?:4XL|3XL|2XL|XXL|XXXL|XXXXL|XL|XS|[SML])\s*$|\s+\d{2,3}(?:см|cm|\s|$)|\s*[,(]|\s+\d+\s*$|$)/i);
     if (m) return m[1].replace(/\s+/g, ' ').trim().toUpperCase();
     return '';
   }
@@ -180,19 +182,29 @@ const SPORT_LABEL: Record<SportSlug, string> = {
 };
 
 /**
- * Build a clean, store-friendly product card title.
- *
- * Rules:
- * - Always includes: product type + sport + brand
- * - Always includes: series/model if present
- * - Always includes: density (гр/м²) if present — for all kimono brands
- * - Includes gender ("для хлопчиків" / "для дівчаток" / "для жінок" / "для чоловіків")
- * - Prepends "Дитяче" for children's products (kimono/uniform only)
- * - NEVER includes: specific size/height (110 см, 120 зріст, etc.)
- * - NEVER includes: raw YML junk
+ * Build a clean, store-friendly product card title (legacy — used for alt text).
  */
-export function getProductCardTitle(product: Product): string {
-  const { productType, sportSlug, brand, density, isChildren, name } = product;
+export function getProductCardTitle(product: Product, activeName?: string): string {
+  const parts = getProductCardParts(product, activeName);
+  return [parts.model, parts.typeLabel, parts.metaLine].filter(Boolean).join(' · ');
+}
+
+/**
+ * Structured card parts for the new 3-line layout:
+ *   model     — "IPPON GEAR ULTRALIGHT" / "BUDOGI BEGINNER" / "KINTAYO WAZARI"
+ *   typeLabel — "Кімоно для дзюдо" / "Дитяче кімоно для дзюдо"
+ *   metaLine  — "Slim Fit · 600 г/м²" / "Women · IJF" / "350 г/м²" / null
+ */
+export interface CardParts {
+  model: string;
+  typeLabel: string;
+  metaLine: string | null;
+}
+
+export function getProductCardParts(product: Product, activeName?: string): CardParts {
+  const { productType, sportSlug, brand, density, isChildren } = product;
+  // For belts: use activeName so the color in title updates when swatch changes
+  const name = (productType === 'belts' && activeName) ? activeName : product.name;
   const brandU = brand.toUpperCase();
   const series = extractSeries(name, brandU);
   const gender = extractGender(name);
@@ -200,73 +212,72 @@ export function getProductCardTitle(product: Product): string {
 
   // ── KIMONO / UNIFORM ──────────────────────────────────────────────────────
   if (productType === 'kimono' || productType === 'uniform') {
-    const baseRaw = KIMONO_TYPE_PREFIX[sportSlug] || 'Кімоно';
-    const lc = (s: string) => s[0].toLowerCase() + s.slice(1);
+    const sportTypeBase = KIMONO_TYPE_PREFIX[sportSlug] || 'Кімоно';
     const childPrefix = isChildren ? 'Дитяче ' : '';
+    const lc = (s: string) => s[0].toLowerCase() + s.slice(1);
+    const typeLabel = childPrefix
+      ? `${childPrefix}${lc(sportTypeBase)}`
+      : sportTypeBase;
 
     if (brandU === 'KINTAYO') {
-      // "Дитяче кімоно для дзюдо KINTAYO серія KOKA 350 гр/м²"
-      const base = childPrefix ? lc(baseRaw) : baseRaw;
-      const parts = [`${childPrefix}${base} KINTAYO`];
-      if (series) parts.push(`серія ${series}`);
-      if (dens) parts.push(dens);
-      return parts.join(' ');
+      const model = series ? `KINTAYO ${series}` : 'KINTAYO';
+      const metaLine = dens || null;
+      return { model, typeLabel, metaLine };
     }
 
     if (brandU === 'BUDOGI') {
-      // "Кімоно для дзюдо TM BUDOGI BEGINNER дитяче для дівчаток 350 гр/м²"
-      const parts = [`${baseRaw} TM BUDOGI`];
-      if (series) parts.push(series);
-      if (isChildren) parts.push('дитяче');
-      if (gender) parts.push(gender);
-      if (dens) parts.push(dens);
-      return parts.join(' ');
+      const model = series ? `BUDOGI ${series}` : 'BUDOGI';
+      const metaParts: string[] = [];
+      if (gender) metaParts.push(gender);
+      if (dens) metaParts.push(dens);
+      return { model, typeLabel, metaLine: metaParts.join(' · ') || null };
     }
 
     if (brandU === 'IPPON GEAR' || brandU === 'IPPONGEAR') {
-      // "Дитяче кімоно для дзюдо IPPON GEAR FUTURE 2 335 гр/м²"
-      // "Ліцензійне кімоно для дзюдо IPPON GEAR LEGEND 2 IJF 690 гр/м²"
       const licensed = /ліцензійн/i.test(name);
       const licPrefix = licensed ? 'Ліцензійне ' : '';
-      const anyPrefix = licPrefix || childPrefix;
-      const base = anyPrefix ? lc(baseRaw) : baseRaw;
-      const parts = [`${licPrefix}${childPrefix}${base} IPPON GEAR`];
-      if (series) parts.push(series);
-      if (/ijf|approved/i.test(name)) parts.push('IJF');
-      if (gender && !isChildren) parts.push(gender);
-      if (dens) parts.push(dens);
-      return parts.join(' ');
+      const fullTypeLabel = licPrefix
+        ? `${licPrefix}${lc(typeLabel)}`
+        : typeLabel;
+      // model: "IPPON GEAR ULTRALIGHT" / "IPPON GEAR LEGEND 2 IJF"
+      let modelCore = series ? `IPPON GEAR ${series}` : 'IPPON GEAR';
+      if (/ijf|approved/i.test(name) && !/IJF/.test(modelCore)) {
+        modelCore += ' IJF';
+      }
+      const metaParts: string[] = [];
+      // fit label added separately in render — skip here to avoid duplication
+      if (gender && !isChildren) metaParts.push(gender);
+      if (dens) metaParts.push(dens);
+      return { model: modelCore, typeLabel: fullTypeLabel, metaLine: metaParts.join(' · ') || null };
     }
 
     // Generic fallback
-    const base = childPrefix ? lc(baseRaw) : baseRaw;
-    const parts = [`${childPrefix}${base} ${brand}`];
-    if (series) parts.push(series);
-    if (gender) parts.push(gender);
-    if (dens) parts.push(dens);
-    return parts.join(' ');
+    const model = series ? `${brand.toUpperCase()} ${series}` : brand.toUpperCase();
+    const metaParts: string[] = [];
+    if (gender) metaParts.push(gender);
+    if (dens) metaParts.push(dens);
+    return { model, typeLabel, metaLine: metaParts.join(' · ') || null };
   }
 
   // ── BELTS ─────────────────────────────────────────────────────────────────
   if (productType === 'belts') {
     const sportPart = sportSlug !== 'uncategorized' ? ` для ${SPORT_LABEL[sportSlug]}` : '';
-    // Normalize color — handle ALL-CAPS YML names
     const colorMatch = name.match(/^(Білий|Синій|Чорний|Жовтий|Зелений|Червоний|Коричневий|Фіолетовий)/i);
     const color = colorMatch ? (colorMatch[1][0].toUpperCase() + colorMatch[1].slice(1).toLowerCase()) : '';
-    // Series: BUDOGI already detected; IPPON GEAR series is in name as "серія X 2"
     let beltSeries = series;
     if (!beltSeries) {
       const sm = name.match(/серія\s+([A-Z][A-Z0-9\s]+?)(?:\s+\d{2,3}(?:см|cm)|,|$)/i);
       if (sm) beltSeries = sm[1].trim().toUpperCase();
     }
-    const seriesPart = beltSeries ? ` серія ${beltSeries}` : '';
-    return `${color ? color + ' п' : 'П'}ояс${sportPart} ${brand}${seriesPart}`;
+    const model = beltSeries ? `${brand.toUpperCase()} ${beltSeries}` : brand.toUpperCase();
+    const typeLabel = `${color ? color + ' п' : 'П'}ояс${sportPart}`;
+    return { model, typeLabel, metaLine: null };
   }
 
   // ── FOOTWEAR ──────────────────────────────────────────────────────────────
   if (productType === 'footwear') {
     const sportPart = sportSlug !== 'uncategorized' ? ` для ${SPORT_LABEL[sportSlug]}` : '';
-    return `Взуття${sportPart} ${brand}`;
+    return { model: brand.toUpperCase(), typeLabel: `Взуття${sportPart}`, metaLine: null };
   }
 
   // ── BAGS ──────────────────────────────────────────────────────────────────
@@ -276,45 +287,42 @@ export function getProductCardTitle(product: Product): string {
     if (/рюкзак.?мішок/.test(n)) bagType = 'Рюкзак-мішок';
     else if (/рюкзак/.test(n)) bagType = 'Рюкзак';
     else if (/валіза/.test(n)) bagType = 'Валіза';
-
-    // Extract series/model from name
     const seriesMatch = name.match(/серія\s+([A-Z][A-Z0-9\s]+?)(?:\s+(?:Medium|Large|XL|M|L|S)|,|$)/i)
       || name.match(/IPPON\s*GEAR\s+(.+?)(?:\s+(?:Medium|Large|XL|M|L|S)\s*$|,|$)/i);
     const bagModel = series || (seriesMatch ? seriesMatch[1].trim() : '');
-    const parts: string[] = [`${bagType} ${brand}`];
-    if (bagModel) parts.push(bagModel.toUpperCase());
-    return parts.join(' ');
+    const model = bagModel ? `${brand.toUpperCase()} ${bagModel.toUpperCase()}` : brand.toUpperCase();
+    return { model, typeLabel: bagType, metaLine: null };
   }
 
   // ── TRAINERS ──────────────────────────────────────────────────────────────
   if (productType === 'trainers') {
     const uchiMatch = name.match(/[Uu]chi\s*[Kk]omi|учі\s*комі|учи\s*коми/i);
-    if (uchiMatch) return `Тренажер Uchi Komi ${brand}`;
-    // Match trainer subtypes with Cyrillic suffixes (genitive etc.)
+    if (uchiMatch) return { model: `${brand.toUpperCase()} Uchi Komi`, typeLabel: 'Тренажер', metaLine: null };
     const subtypeMatch = name.match(/(?:Канат|Комір|Захват)[а-яґєіїА-ЯҐЄІЇa-zA-Z-]*/i);
     if (subtypeMatch) {
-      // Normalize to nominative display form
       const raw = subtypeMatch[0];
       const normalized = raw
         .replace(/захват[уіи]/i, 'Захват')
         .replace(/захват/i, 'Захват')
         .replace(/захвати/i, 'Захвати');
-      return `Тренажер ${normalized} ${brand}`;
+      return { model: brand.toUpperCase(), typeLabel: `Тренажер ${normalized}`, metaLine: null };
     }
-    return `Тренажер ${brand}`;
+    return { model: brand.toUpperCase(), typeLabel: 'Тренажер', metaLine: null };
   }
 
   // ── T-SHIRTS ──────────────────────────────────────────────────────────────
   if (productType === 'tshirts') {
-    const colorMatch = name.match(/^([А-ЯҐЄІЇа-яґєіїa-zA-Z\-]+(?:\s+[А-ЯҐЄІЇа-яґєіїa-zA-Z\-]+)?)\s+футболка/i);
-    const color = colorMatch ? colorMatch[1] + ' ' : '';
-    if (series) return `${color}Футболка ${brand} ${series}`.trim();
-    return `${color}Футболка ${brand}`.trim();
+    // Strip trailing clothing size from YML name (e.g. "Сіра футболка IPPON GEAR CLAIM XS" → strip "XS")
+    const nameNoSize = name.replace(/\s+(?:4XL|3XL|2XL|XXL|XXXL|XXXXL|XL|XS|[SML])\s*$/i, '').trim();
+    const colorMatch2 = nameNoSize.match(/^([А-ЯҐЄІЇа-яґєіїa-zA-Z\-]+(?:\s+[А-ЯҐЄІЇа-яґєіїa-zA-Z\-]+)?)\s+футболка/i);
+    const color2 = colorMatch2 ? colorMatch2[1] : '';
+    const model = series ? `${brand.toUpperCase()} ${series}` : brand.toUpperCase();
+    return { model, typeLabel: `${color2 ? color2 + ' ' : ''}Футболка`, metaLine: null };
   }
 
   // ── SAUNA SUIT ────────────────────────────────────────────────────────────
   if (productType === 'sauna_suit') {
-    return `Костюм-сауна ${brand}`;
+    return { model: brand.toUpperCase(), typeLabel: 'Костюм-сауна', metaLine: null };
   }
 
   // ── FALLBACK ──────────────────────────────────────────────────────────────
@@ -328,12 +336,12 @@ export function getProductCardTitle(product: Product): string {
     .replace(/\s+/g, ' ')
     .replace(/,\s*$/, '')
     .trim();
-  return cleaned || name;
+  return { model: cleaned || name, typeLabel: '', metaLine: null };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function ProductCard({ product }: Props) {
+function ProductCard({ product }: Props) {
   const { addItem } = useCart();
   const [added, setAdded] = useState(false);
   const [activeVariant, setActiveVariant] = useState(0);
@@ -391,7 +399,10 @@ export default function ProductCard({ product }: Props) {
     setTimeout(() => setAdded(false), 1500);
   };
 
-  const cardTitle = getProductCardTitle(product);
+  // For belts: recalculate title from active variant name so color updates on swatch click
+  const activeName = activeVarObj?.name ?? product.name;
+  const cardTitle = getProductCardTitle(product, activeName);
+  const fitKind = isFitVariantProduct(product) ? detectFit(product.name) : null;
 
   // Active color — drives belt/kit badge logic
   const activeColor = activeVarObj?.color ?? product.color;
@@ -416,7 +427,7 @@ export default function ProductCard({ product }: Props) {
     : null;
 
   return (
-    <Link href={`/product/${product.id}`}>
+    <Link href={activeColor ? `/product/${product.id}?color=${encodeURIComponent(activeColor)}` : `/product/${product.id}`}>
       <div
         className="gi-card h-full flex flex-col rounded-xl overflow-hidden cursor-pointer group transition-all duration-300"
         style={{
@@ -442,6 +453,8 @@ export default function ProductCard({ product }: Props) {
           <img
             src={currentImage}
             alt={cardTitle}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.03]"
             style={{ willChange: 'transform' }}
           />
@@ -562,79 +575,93 @@ export default function ProductCard({ product }: Props) {
           {/* Brand badge */}
           <BrandLogo brand={product.brand} />
 
-          {/* Title — 3 lines clamped, fixed min-height for row alignment */}
+          {/* Title — up to 4 lines on mobile, 3 on desktop; fixed min-height keeps buttons aligned */}
           <h3
-            className="font-unbounded font-bold line-clamp-3 flex-shrink-0"
+            className="gi-card-title"
             style={{
-              fontSize: '11.5px',
-              lineHeight: '1.35',
-              minHeight: 'calc(1.35em * 3)',
               color: 'rgba(255,255,255,0.90)',
             }}
           >
             {cardTitle}
           </h3>
 
-          {/* Benefit chip */}
-          {benefitKind && (
-            <div style={{ marginTop: '5px' }}>
-              <span
-                className="font-inter"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '3px 7px 3px 5px',
-                  borderRadius: '6px',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.09)',
-                  fontSize: '10.5px',
-                  lineHeight: '1',
-                  color: 'rgba(255,255,255,0.70)',
-                  maxWidth: '100%',
-                  overflow: 'hidden',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {/* Icon */}
-                {benefitKind === 'ijf' && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E8232A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    <polyline points="9 12 11 14 15 10" />
-                  </svg>
-                )}
-                {(benefitKind === 'belt' || benefitKind === 'belt_backpack') && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E8232A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <polyline points="20 12 20 22 4 22 4 12" />
-                    <rect x="2" y="7" width="20" height="5" />
-                    <path d="M12 22V7" />
-                    <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
-                    <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
-                  </svg>
-                )}
-                {/* Label */}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {benefitKind === 'ijf'          && 'Сертифіковано IJF'}
-                  {benefitKind === 'belt_backpack' && 'Пояс + рюкзак-мішок'}
-                  {benefitKind === 'belt'          && 'Пояс у комплекті'}
+          {/* Meta zone — fit + benefit. On desktop: fixed min-height so cards without badges stay aligned */}
+          <div className="sm:min-h-[28px]">
+            {/* Fit label */}
+            {fitKind && (() => {
+              const fitName  = fitKind === 'slim' ? 'Slim Fit' : fitKind === 'women' ? 'Women' : 'Regular';
+              const fitDescr = fitKind === 'slim' ? 'приталений крій' : fitKind === 'women' ? 'жіночий крій' : 'стандартний крій';
+              return (
+                <div style={{ marginTop: '6px', marginBottom: '1px' }}>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 700, color: '#E8232A', letterSpacing: '0.01em', lineHeight: 1.3 }}>
+                    {fitName}
+                  </span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '11px', fontWeight: 400, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.01em', lineHeight: 1.3 }}>
+                    {' · '}{fitDescr}
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Benefit chip */}
+            {benefitKind && (
+              <div style={{ marginTop: fitKind ? '4px' : '6px' }}>
+                <span
+                  className="font-inter"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 7px 3px 5px',
+                    borderRadius: '6px',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.09)',
+                    fontSize: '10.5px',
+                    lineHeight: '1',
+                    color: 'rgba(255,255,255,0.70)',
+                    maxWidth: '100%',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {benefitKind === 'ijf' && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E8232A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <polyline points="9 12 11 14 15 10" />
+                    </svg>
+                  )}
+                  {(benefitKind === 'belt' || benefitKind === 'belt_backpack') && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E8232A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <polyline points="20 12 20 22 4 22 4 12" />
+                      <rect x="2" y="7" width="20" height="5" />
+                      <path d="M12 22V7" />
+                      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                    </svg>
+                  )}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {benefitKind === 'ijf'          && 'Сертифіковано IJF'}
+                    {benefitKind === 'belt_backpack' && 'Пояс + рюкзак-мішок'}
+                    {benefitKind === 'belt'          && 'Пояс у комплекті'}
+                  </span>
                 </span>
-              </span>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
-          {/* Spacer */}
-          <div className="flex-1 min-h-[6px]" />
+          {/* Spacer — mobile only: pushes price to bottom of card */}
+          <div className="flex-1 min-h-[6px] sm:hidden" />
 
-          {/* Price */}
-          <div className="flex items-baseline gap-2 mt-2.5 mb-2.5">
+          {/* Price — on desktop: mt-auto pushes it to bottom of flex-1 info panel */}
+          <div className="flex items-baseline gap-1.5 mt-2 sm:mt-auto sm:pt-3 mb-2">
             <span
-              className="font-unbounded font-black leading-none"
-              style={{ fontSize: '14px', color: '#FFFFFF' }}
+              className="font-unbounded font-bold leading-none"
+              style={{ fontSize: '13px', color: '#FFFFFF' }}
             >
               {priceStr}
             </span>
             {oldPriceStr && (
-              <span className="font-inter line-through leading-none" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>
+              <span className="font-inter line-through leading-none" style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.22)' }}>
                 {oldPriceStr}
               </span>
             )}
@@ -645,29 +672,29 @@ export default function ProductCard({ product }: Props) {
             onClick={handleAdd}
             className="w-full flex items-center justify-center gap-1.5 text-white font-bold font-inter transition-all duration-200 active:scale-[0.98]"
             style={added ? {
-              fontSize: '11.5px',
-              padding: '9px 0',
-              borderRadius: '8px',
+              fontSize: '11px',
+              padding: '8px 0',
+              borderRadius: '7px',
               background: '#16a34a',
               border: '1px solid rgba(255,255,255,0.10)',
             } : {
-              fontSize: '11.5px',
-              padding: '9px 0',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, rgba(158,20,26,0.92) 0%, rgba(220,34,40,0.88) 55%, rgba(175,24,30,0.90) 100%)',
-              border: '1px solid rgba(239,68,68,0.22)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)',
+              fontSize: '11px',
+              padding: '8px 0',
+              borderRadius: '7px',
+              background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+              border: '1px solid rgba(220,38,38,0.30)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)',
             }}
             onMouseEnter={e => {
               if (!added) {
                 (e.currentTarget as HTMLButtonElement).style.background =
-                  'linear-gradient(135deg, rgba(175,24,30,0.96) 0%, rgba(232,35,42,0.94) 55%, rgba(190,28,34,0.96) 100%)';
+                  'linear-gradient(135deg, #C41E1E 0%, #991B1B 100%)';
               }
             }}
             onMouseLeave={e => {
               if (!added) {
                 (e.currentTarget as HTMLButtonElement).style.background =
-                  'linear-gradient(135deg, rgba(158,20,26,0.92) 0%, rgba(220,34,40,0.88) 55%, rgba(175,24,30,0.90) 100%)';
+                  'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)';
               }
             }}
           >
@@ -682,3 +709,5 @@ export default function ProductCard({ product }: Props) {
     </Link>
   );
 }
+
+export default memo(ProductCard);
