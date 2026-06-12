@@ -383,7 +383,7 @@ function slugify(str: string): string {
 }
 const UA_MAP: Record<string, string> = { а:"a", б:"b", в:"v", г:"h", д:"d", е:"e", ж:"zh", з:"z", и:"y", к:"k", л:"l", м:"m", н:"n", о:"o", п:"p", р:"r", с:"s", т:"t", у:"u", ф:"f", х:"kh", ц:"ts", ч:"ch", ш:"sh", щ:"shch", ь:"", ю:"yu", я:"ya", ґ:"g" };
 function transliterateUk(c: string): string { return UA_MAP[c] ?? c; }
-const COLOR_HEX: Record<string, string> = { Білий:"#FFFFFF", Біле:"#FFFFFF", Біла:"#FFFFFF", Синій:"#1B4FBF", Синє:"#1B4FBF", Синя:"#1B4FBF", Чорний:"#1A1A1A", Чорне:"#1A1A1A", Червоний:"#E8232A", Червоне:"#E8232A", Жовтий:"#F5C518", Жовте:"#F5C518", Зелений:"#2D7A2D", Зелене:"#2D7A2D", Коричневий:"#8B4513", Фіолетовий:"#6B2FA0", Сірий:"#808080", Помаранчевий:"#FF8C00", Помаранчеве:"#FF8C00" };
+const COLOR_HEX: Record<string, string> = { Білий:"#FFFFFF", Біле:"#FFFFFF", Біла:"#FFFFFF", Синій:"#1B4FBF", Синє:"#1B4FBF", Синя:"#1B4FBF", Чорний:"#1A1A1A", Чорне:"#1A1A1A", Червоний:"#E8232A", Червоне:"#E8232A", Жовтий:"#F5C518", Жовте:"#F5C518", Зелений:"#2D7A2D", Зелене:"#2D7A2D", Коричневий:"#8B4513", Фіолетовий:"#6B2FA0", Сірий:"#808080", Помаранчевий:"#FF8C00", Помаранчеве:"#FF8C00", Бежевий:"#C8A97A", Бежева:"#C8A97A", Бежеве:"#C8A97A" };
 function colorHex(color: string): string { for (const [key, hex] of Object.entries(COLOR_HEX)) if (color.toLowerCase().includes(key.toLowerCase())) return hex; return "#888888"; }
 
 // ── Belt color normalization ──────────────────────────────────────────────────
