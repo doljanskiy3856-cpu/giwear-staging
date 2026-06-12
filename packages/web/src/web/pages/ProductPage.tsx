@@ -19,6 +19,7 @@ import { getProductOverride } from '../data/product-overrides';
 import { findFitSiblings, findAllFitProducts, detectFit, FIT_CHAR_LABEL, FIT_DESCR } from '../lib/fit-utils';
 import NotifyModal from '../components/NotifyModal';
 import { useSeoMeta } from '../hooks/useSeoMeta';
+import { useJsonLd } from '../hooks/useJsonLd';
 
 /* ══════════════════════════════════════════════════════════
    Helpers
@@ -534,6 +535,39 @@ export default function ProductPage({ id }: Props) {
     canonicalPath: `/product/${id}`,
   });
 
+  const _siteUrl = ((import.meta as any).env?.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') ?? 'https://giwear.com.ua';
+  const _productSku = displayVendorCode || (product?.id ?? id);
+  // Use first raw image (before activeImages memo runs) — good enough for JSON-LD
+  const _productImage = (activeVariant?.images?.[0] ?? product?.images?.[0] ?? product?.image ?? '') as string;
+  const _productUrl = `${_siteUrl}/product/${id}`;
+
+  // JSON-LD: Product + Offer schema
+  // Called unconditionally (Rules of Hooks) — null when product not yet loaded
+  const _jsonLdSchema = product ? [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: displayName,
+      sku: _productSku,
+      ...(product.brand ? { brand: { '@type': 'Brand', name: product.brand } } : {}),
+      ...(displayPrice ? {
+        offers: {
+          '@type': 'Offer',
+          url: _productUrl,
+          priceCurrency: 'UAH',
+          price: displayPrice,
+          availability: displayAvailable
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/OutOfStock',
+          seller: { '@type': 'Organization', name: 'GIWEAR' },
+        },
+      } : {}),
+      ...(_productImage ? { image: [_productImage] } : {}),
+      url: _productUrl,
+    },
+  ] : null;
+  useJsonLd(`product-${id}`, _jsonLdSchema);
+
   // Compute override early so activeImages memo can use imagesBySizeGte
   // Guard against product being undefined during loading state
   const override = product
@@ -772,6 +806,23 @@ export default function ProductPage({ id }: Props) {
     if (isChildren) return [{ label: 'Дитячі', href: '/category/dytiachy' }];
     return [{ label: 'Каталог', href: '/' }];
   })();
+
+  // JSON-LD: BreadcrumbList (uses breadcrumbCrumbs computed above)
+  const _breadcrumbSchema = product ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Головна', item: _siteUrl },
+      ...breadcrumbCrumbs.map((crumb, i) => ({
+        '@type': 'ListItem',
+        position: i + 2,
+        name: crumb.label,
+        ...(crumb.href ? { item: `${_siteUrl}${crumb.href}` } : {}),
+      })),
+      { '@type': 'ListItem', position: breadcrumbCrumbs.length + 2, name: displayName },
+    ],
+  } : null;
+  useJsonLd(`breadcrumb-product-${id}`, _breadcrumbSchema);
 
   return (
     <div className="min-h-screen bg-[#0F0F0F]">

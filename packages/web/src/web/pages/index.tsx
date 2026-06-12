@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Product } from '../data/products';
 import ProductCard from '../components/ProductCard';
 import { useSeoMeta } from '../hooks/useSeoMeta';
+import { useJsonLd } from '../hooks/useJsonLd';
 
 const heroSlides = [
   { img: '/hero1.png' },
@@ -179,6 +180,38 @@ export default function HomePage() {
       'Офіційний інтернет-магазин кімоно та гі для карате, дзюдо, BJJ, самбо, айкідо. Доставка по Україні за 1–2 дні. Допомога з вибором розміру.',
     canonicalPath: '/',
   });
+
+  const _homeSiteUrl = ((import.meta as any).env?.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') ?? 'https://giwear.com.ua';
+  useJsonLd('homepage', [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'GIWEAR',
+      url: _homeSiteUrl,
+      logo: `${_homeSiteUrl}/logo.png`,
+      contactPoint: {
+        '@type': 'ContactPoint',
+        contactType: 'customer service',
+        url: 'https://t.me/gistore_ua',
+        availableLanguage: 'Ukrainian',
+      },
+      sameAs: ['https://t.me/gistore_ua'],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'GIWEAR',
+      url: _homeSiteUrl,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${_homeSiteUrl}/category/karate?q={search_term_string}`,
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  ]);
 
   const [slide, setSlide] = useState(0);
   useEffect(() => {

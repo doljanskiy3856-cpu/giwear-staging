@@ -20,6 +20,7 @@ import CrossSellBlock from '../components/CrossSellBlock';
 
 import { SIZE_DIMENSION_LABELS } from '../../lib/categories';
 import { useSeoMeta } from '../hooks/useSeoMeta';
+import { useJsonLd } from '../hooks/useJsonLd';
 
 /* ══════════════════════════════════════════════════════════
    Types
@@ -1703,6 +1704,21 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
     description: seoDesc,
     canonicalPath: seoCanonical,
   });
+
+  const _catSiteUrl = ((import.meta as any).env?.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') ?? 'https://giwear.com.ua';
+  const _catCrumbName = category === 'brand' && brandLabel !== 'Бренд' ? brandLabel : (cfg?.title ?? category);
+  const _catCrumbUrl = category === 'brand' && _brandParam
+    ? `${_catSiteUrl}/category/brand?brand=${encodeURIComponent(_brandParam)}`
+    : `${_catSiteUrl}/category/${category}`;
+
+  useJsonLd(`breadcrumb-category-${category}`, cfg ? {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Головна', item: _catSiteUrl },
+      { '@type': 'ListItem', position: 2, name: _catCrumbName, item: _catCrumbUrl },
+    ],
+  } : null);
 
   // Safety: unknown category — show friendly 404-like state
   if (!cfg) {
