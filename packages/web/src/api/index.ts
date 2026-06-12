@@ -106,7 +106,10 @@ app.post("/orders", async (c) => {
   } = body as {
     orderId: string; name: string; phone: string; email: string;
     deliveryText: string; paymentText: string; total: number;
-    items: { name: string; size: string; qty: number; price: number }[];
+    items: {
+      name: string; size: string; qty: number; price: number;
+      brand?: string; color?: string; vendorCode?: string; productUrl?: string;
+    }[];
     tgMsg: string; comment?: string;
   };
 
@@ -311,11 +314,100 @@ app.post("/orders", async (c) => {
   // Fire and forget — don't block the HTTP response
   sendEmails();
 
+  // ── KeyCRM: create checkout order (fire-and-forget) ──────────────────────
+  createKeyCrmCheckoutOrder({
+    orderId, name, phone, email, deliveryText, paymentText,
+    total, comment, items,
+  }).catch((e: Error) => console.error("[keycrm-checkout] error:", e.message));
+
   console.log(`[orders] ${orderId} received — emails dispatched (store: ${storeEmail}, customer: ${email || "none"})`);
   return c.json({ ok: true, orderId }, 200);
 });
 
-// ─── KeyCRM helper ───────────────────────────────────────────────────────────
+// ─── KeyCRM: checkout order ───────────────────────────────────────────────────
+async function createKeyCrmCheckoutOrder(data: {
+  orderId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  deliveryText?: string;
+  paymentText?: string;
+  total: number;
+  comment?: string;
+  items: {
+    name: string; size: string; qty: number; price: number;
+    brand?: string; color?: string; vendorCode?: string; productUrl?: string;
+  }[];
+}): Promise<void> {
+  const key = process.env.KEYCRM_API_KEY;
+  if (!key) {
+    console.warn("[keycrm-checkout] KEYCRM_API_KEY not set — skipping");
+    return;
+  }
+
+  const commentLines = [
+    `Checkout order from GIWEAR`,
+    `Замовлення: ${data.orderId}`,
+    data.deliveryText ? `Доставка: ${data.deliveryText}` : null,
+    data.paymentText  ? `Оплата: ${data.paymentText}`    : null,
+    data.comment      ? `Коментар: ${data.comment}`      : null,
+  ].filter(Boolean).join("\n");
+
+  const products = data.items.map(i => {
+    const nameParts = [i.name];
+    if (i.color) nameParts.push(`(${i.color})`);
+    if (i.size)  nameParts.push(`розм. ${i.size}`);
+    const itemComment = [
+      i.brand      ? `Бренд: ${i.brand}`         : null,
+      i.color      ? `Колір: ${i.color}`          : null,
+      `Розмір: ${i.size}`,
+      i.vendorCode ? `Артикул: ${i.vendorCode}`   : null,
+      i.productUrl ? `URL: ${i.productUrl}`        : null,
+    ].filter(Boolean).join(" | ");
+
+    return {
+      sku:      i.vendorCode ?? undefined,
+      name:     nameParts.join(" "),
+      quantity: i.qty,
+      price:    i.price,
+      comment:  itemComment || undefined,
+    };
+  });
+
+  const payload = {
+    source_name:    "GIWEAR",
+    buyer: {
+      full_name: data.name,
+      phone:     data.phone,
+      ...(data.email ? { email: data.email } : {}),
+    },
+    buyer_comment:  commentLines,
+    products,
+  };
+
+  console.log("[keycrm-checkout] sending payload:", JSON.stringify(payload));
+
+  const res = await fetch("https://openapi.keycrm.app/v1/order", {
+    method: "POST",
+    headers: {
+      "Authorization":  `Bearer ${key}`,
+      "Content-Type":   "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await res.text();
+  console.log(`[keycrm-checkout] status: ${res.status}`);
+  console.log(`[keycrm-checkout] response: ${rawText}`);
+
+  let json: { id?: number } = {};
+  try { json = JSON.parse(rawText) as { id?: number }; } catch { /* non-json */ }
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${rawText}`);
+  console.log(`[keycrm-checkout] order created: ${json.id} (${data.orderId})`);
+}
+
+// ─── KeyCRM: notify-availability helper ──────────────────────────────────────
 async function createKeyCrmNotifyOrder(data: {
   fullName: string;
   phone: string;

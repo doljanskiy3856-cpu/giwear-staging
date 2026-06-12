@@ -17,12 +17,16 @@ function genOrderId(): string {
 }
 
 interface OrderItem {
-  id:    string;
-  name:  string;
-  image: string;
-  size:  string;
-  qty:   number;
-  price: number; // unit price
+  id:         string;
+  name:       string;
+  image:      string;
+  size:       string;
+  qty:        number;
+  price:      number; // unit price
+  brand?:     string;
+  color?:     string;
+  vendorCode?: string;
+  productUrl?: string;
 }
 
 interface OrderSnapshot {
@@ -35,6 +39,7 @@ interface OrderSnapshot {
   total:        number;
   itemsCount:   number;
   items:        OrderItem[];
+  comment?:     string;
   tgMsg:        string;
 }
 
@@ -127,13 +132,18 @@ export default function CheckoutPage() {
       total,
       itemsCount: items.reduce((s, i) => s + i.qty, 0),
       items: items.map(i => ({
-        id:    String(i.product.id),
-        name:  stripSizeSuffix(i.product.name),
-        image: i.product.image,
-        size:  i.size,
-        qty:   i.qty,
-        price: i.unitPrice,
+        id:          String(i.product.id),
+        name:        stripSizeSuffix(i.product.name),
+        image:       i.product.image,
+        size:        i.size,
+        qty:         i.qty,
+        price:       i.unitPrice,
+        brand:       i.product.brand || undefined,
+        color:       i.color || i.product.color || undefined,
+        vendorCode:  i.product.vendorCode || undefined,
+        productUrl:  `https://giwear.com.ua/product/${i.product.slug}`,
       })),
+      comment: comment.trim() || undefined,
       tgMsg,
     };
     // Persist so success screen survives accidental refresh
