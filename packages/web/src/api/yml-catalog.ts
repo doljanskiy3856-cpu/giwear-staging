@@ -253,16 +253,20 @@ const EXCLUDED_OFFER_IDS = new Set<string>([
 // Key: groupId → map of color (YML param value) → hex.
 // Use to correct swatch colors that look wrong with the global COLOR_HEX defaults.
 const PRODUCT_COLOR_HEX_OVERRIDES: Record<string, Record<string, string>> = {
-  // Product 1756 — KINTAYO JUDO cap: "Синій" is actually navy/dark-blue in the YML photos
+  // Product 1756 — KINTAYO JUDO cap (звичайна): "Синій" is actually navy/dark-blue in the YML photos
   "1756": { "Синій": "#1C3A6E" },
+  // Product 1759 — KINTAYO JUDO cap (реперка з прямим козирком): same navy issue
+  "1759": { "Синій": "#1C3A6E" },
 };
 
 // Per-product, per-color label rename overrides.
 // Key: groupId → map of YML color param value → display label shown to user.
 // Does NOT affect offer id, price, availability or photos.
 const PRODUCT_COLOR_NAME_OVERRIDES: Record<string, Record<string, string>> = {
-  // Product 1756 — dark navy cap labeled as "Синій" in YML → show as "Темно-синій"
+  // Product 1756 — KINTAYO JUDO cap (звичайна): dark navy labeled "Синій" in YML
   "1756": { "Синій": "Темно-синій" },
+  // Product 1759 — KINTAYO JUDO cap (реперка з прямим козирком): same issue
+  "1759": { "Синій": "Темно-синій" },
 };
 
 // Images to strip from YML feed output per groupId (e.g. old/duplicate size charts).
