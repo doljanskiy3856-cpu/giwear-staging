@@ -249,6 +249,14 @@ const EXCLUDED_OFFER_IDS = new Set<string>([
   // 110_2-45 moved to correct grey variant in catalog-snapshot.json
 ]);
 
+// Per-product, per-color colorHex overrides.
+// Key: groupId → map of color (YML param value) → hex.
+// Use to correct swatch colors that look wrong with the global COLOR_HEX defaults.
+const PRODUCT_COLOR_HEX_OVERRIDES: Record<string, Record<string, string>> = {
+  // Product 1756 — KINTAYO JUDO cap: "Синій" is actually navy/dark-blue in the YML photos
+  "1756": { "Синій": "#1C3A6E" },
+};
+
 // Images to strip from YML feed output per groupId (e.g. old/duplicate size charts).
 // Applied before chart appending in applyImageOverride.
 const STRIP_IMAGES: Record<string, string[]> = {
@@ -942,9 +950,10 @@ function buildProducts(categories: Map<string, { name: string; parentId?: string
       }));
 
       const rawColorImages = Array.from(new Set(sorted.flatMap((o) => o.pictures))).slice(0, 8);
+      const resolvedColorHex = PRODUCT_COLOR_HEX_OVERRIDES[groupId]?.[c] ?? colorHex(c);
       return {
         color: c,
-        colorHex: colorHex(c),
+        colorHex: resolvedColorHex,
         images: applyImageOverride(groupId, c, rawColorImages),
         name: firstOffer.name,
         price: colPrices.length ? Math.min(...colPrices) : undefined,
@@ -1168,7 +1177,7 @@ function buildProducts(categories: Map<string, { name: string; parentId?: string
           }));
           return {
             color: c,
-            colorHex: colorHex(c),
+            colorHex: PRODUCT_COLOR_HEX_OVERRIDES[groupId]?.[c] ?? colorHex(c),
             images: Array.from(new Set(sorted.flatMap(o => o.pictures))).slice(0, 8),
             name: firstOffer.name,
             price: colPrices.length ? Math.min(...colPrices) : undefined,

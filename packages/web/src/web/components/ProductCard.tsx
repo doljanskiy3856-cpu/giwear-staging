@@ -203,8 +203,9 @@ export interface CardParts {
 
 export function getProductCardParts(product: Product, activeName?: string): CardParts {
   const { productType, sportSlug, brand, density, isChildren } = product;
-  // For belts: use activeName so the color in title updates when swatch changes
-  const name = (productType === 'belts' && activeName) ? activeName : product.name;
+  // For belts and uncategorized (кепки, etc.): use activeName so the color in title
+  // updates when the user clicks a different color swatch.
+  const name = activeName ?? product.name;
   const brandU = brand.toUpperCase();
   const series = extractSeries(name, brandU);
   const gender = extractGender(name);
