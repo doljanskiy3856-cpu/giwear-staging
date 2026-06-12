@@ -19,6 +19,7 @@ import ProductCard from '../components/ProductCard';
 import CrossSellBlock from '../components/CrossSellBlock';
 
 import { SIZE_DIMENSION_LABELS } from '../../lib/categories';
+import { useSeoMeta } from '../hooks/useSeoMeta';
 
 /* ══════════════════════════════════════════════════════════
    Types
@@ -1677,6 +1678,31 @@ export default function CategoryPage({ category }: { category: CategoryKey }) {
   const _brandSearch = typeof window !== 'undefined' ? window.location.search : '';
   const _brandParam = new URLSearchParams(_brandSearch).get('brand') ?? '';
   const brandLabel = _brandParam || 'Бренд';
+
+  /* ── SEO: dynamic title / meta description / canonical ──
+     Must be called BEFORE any conditional return (Rules of Hooks).
+     Falls back gracefully when cfg is undefined (404 case). */
+  const seoTitle = !cfg
+    ? 'GIWEAR — екіпірування для єдиноборств в Україні'
+    : category === 'brand' && brandLabel !== 'Бренд'
+      ? `${brandLabel} — кімоно та екіпірування для єдиноборств | GIWEAR`
+      : `${cfg.title} — купити в Україні | GIWEAR`;
+
+  const seoDesc = !cfg
+    ? 'Інтернет-магазин кімоно та гі для єдиноборств. Доставка по Україні.'
+    : category === 'brand' && brandLabel !== 'Бренд'
+      ? `${brandLabel} — повний асортимент кімоно та екіпірування для єдиноборств. Купити в Україні. Доставка за 1–2 дні. Допомога з вибором розміру.`
+      : `${cfg.title} — купити в Україні. ${cfg.seoDesc} Доставка Новою Поштою за 1–2 дні. Допомога з вибором розміру.`;
+
+  const seoCanonical = category === 'brand' && _brandParam
+    ? `/category/brand?brand=${encodeURIComponent(_brandParam)}`
+    : `/category/${category}`;
+
+  useSeoMeta({
+    title: seoTitle,
+    description: seoDesc,
+    canonicalPath: seoCanonical,
+  });
 
   // Safety: unknown category — show friendly 404-like state
   if (!cfg) {

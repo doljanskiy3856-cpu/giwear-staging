@@ -18,6 +18,7 @@ import { getKitResult } from '../lib/belt-rules';
 import { getProductOverride } from '../data/product-overrides';
 import { findFitSiblings, findAllFitProducts, detectFit, FIT_CHAR_LABEL, FIT_DESCR } from '../lib/fit-utils';
 import NotifyModal from '../components/NotifyModal';
+import { useSeoMeta } from '../hooks/useSeoMeta';
 
 /* ══════════════════════════════════════════════════════════
    Helpers
@@ -513,6 +514,25 @@ export default function ProductPage({ id }: Props) {
   const displayAvailable  = activeSizeOffer?.available ?? activeVariant?.offers?.some(o => o.available) ?? product?.available ?? true;
 
   const discount = displayOldPrice ? Math.round((1 - displayPrice / displayOldPrice) * 100) : null;
+
+  /* ── SEO: dynamic title / meta description / canonical ── */
+  useSeoMeta({
+    title: product
+      ? `${displayName} — купити в Україні | GIWEAR`
+      : 'GIWEAR — екіпірування для єдиноборств в Україні',
+    description: product
+      ? [
+          `${displayName} — купити в Україні.`,
+          product.brand ? `Бренд: ${product.brand}.` : '',
+          `Ціна від ${displayPrice} грн.`,
+          'Доставка Новою Поштою за 1–2 дні.',
+          'Допомога з вибором розміру.',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      : 'Інтернет-магазин кімоно та гі для єдиноборств. Доставка по Україні.',
+    canonicalPath: `/product/${id}`,
+  });
 
   // Compute override early so activeImages memo can use imagesBySizeGte
   // Guard against product being undefined during loading state

@@ -4,6 +4,7 @@ import { MessageCircle, ChevronRight, ChevronLeft, ArrowRight, Truck, RotateCcw,
 import { useQuery } from '@tanstack/react-query';
 import type { Product } from '../data/products';
 import ProductCard from '../components/ProductCard';
+import { useSeoMeta } from '../hooks/useSeoMeta';
 
 const heroSlides = [
   { img: '/hero1.png' },
@@ -170,6 +171,14 @@ export default function HomePage() {
     queryFn: () => fetch('/api/products').then(r => r.json()),
   });
   const hits = sortProducts(allProducts).filter(p => p.available).slice(0, 4);
+
+  /* ── SEO ── */
+  useSeoMeta({
+    title: 'GIWEAR — екіпірування для єдиноборств в Україні',
+    description:
+      'Офіційний інтернет-магазин кімоно та гі для карате, дзюдо, BJJ, самбо, айкідо. Доставка по Україні за 1–2 дні. Допомога з вибором розміру.',
+    canonicalPath: '/',
+  });
 
   const [slide, setSlide] = useState(0);
   useEffect(() => {
