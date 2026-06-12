@@ -345,25 +345,35 @@ async function createKeyCrmNotifyOrder(data: {
     data.productUrl ? `Сторінка: ${data.productUrl}` : null,
   ].filter(Boolean);
 
+  const payload = {
+    source_name: "GIWEAR",
+    buyer: {
+      full_name: data.fullName,
+      phone: data.phone,
+      ...(data.email ? { email: data.email } : {}),
+    },
+    buyer_comment: lines.join("\n"),
+  };
+
+  console.log("[keycrm] sending payload:", JSON.stringify(payload));
+
   const res = await fetch("https://openapi.keycrm.app/v1/order", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${key}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      source_name: "GIWEAR",
-      buyer: {
-        full_name: data.fullName,
-        phone: data.phone,
-        ...(data.email ? { email: data.email } : {}),
-      },
-      buyer_comment: lines.join("\n"),
-    }),
+    body: JSON.stringify(payload),
   });
 
-  const json = await res.json() as { id?: number };
-  if (!res.ok) throw new Error(JSON.stringify(json));
+  const rawText = await res.text();
+  console.log(`[keycrm] status: ${res.status}`);
+  console.log(`[keycrm] response: ${rawText}`);
+
+  let json: { id?: number } = {};
+  try { json = JSON.parse(rawText) as { id?: number }; } catch { /* non-json */ }
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${rawText}`);
   console.log(`[keycrm] order created: ${json.id}`);
 }
 
