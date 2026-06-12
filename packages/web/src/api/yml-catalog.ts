@@ -246,7 +246,7 @@ const IPPON_CHART_FUTURE_BEGINNER = "https://storage.googleapis.com/runable-temp
 // Use this to hide specific accidental/incorrect offers without touching YML parser.
 // Format: Set<rawOfferId>
 const EXCLUDED_OFFER_IDS = new Set<string>([
-  "110_2-45", // IPPON GEAR CLAIM Світло-сірий XL — випадкова позиція
+  // 110_2-45 moved to correct grey variant in catalog-snapshot.json
 ]);
 
 // Images to strip from YML feed output per groupId (e.g. old/duplicate size charts).

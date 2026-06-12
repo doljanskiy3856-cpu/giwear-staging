@@ -11101,6 +11101,14 @@
             "name": "Сіра футболка IPPON GEAR CLAIM XS",
             "vendorCode": "TGXS",
             "available": true
+          },
+          {
+            "offerId": "110_2-45",
+            "size": "XL",
+            "price": 990,
+            "name": "Сіра футболка IPPON GEAR CLAIM XL",
+            "vendorCode": "TGXL",
+            "available": true
           }
         ]
       },
